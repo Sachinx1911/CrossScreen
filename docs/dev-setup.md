@@ -194,6 +194,11 @@ SIGNALING_PORT=8788 pnpm dev:signaling
 
 remembering to point `VITE_SIGNALING_URL` at the same port.
 
+A port that is not a whole number, or is outside 1–65535, is now refused with
+a `signaling.bad_config` line naming the variable and the value. `8788x` used
+to be read as `8788`, so the server listened somewhere other than where the
+person thought — with `VITE_SIGNALING_URL` still aimed at the port they meant.
+
 ## The Phase 0.5 cross-network test
 
 This is the **GO/NO-GO gate**. Local success proves nothing about NAT traversal.

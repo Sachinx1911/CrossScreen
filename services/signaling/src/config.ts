@@ -7,18 +7,48 @@
  * configuration rather than by code.
  */
 
-function intFromEnv(name: string, fallback: number): number {
+import { log } from './log.ts';
+
+/** Report and stop, the way a port clash does — not a stack trace. */
+function reject(name: string, raw: string, reason: string): never {
+  log.error('signaling.bad_config', { variable: name, value: raw, reason });
+  process.exit(1);
+}
+
+/**
+ * `SIGNALING_PORT` is documented as the way around a stuck port, so a typo in
+ * it is an ordinary event rather than a strange one. Two kinds got through:
+ *
+ * `parseInt` stops at the first character that is not a digit, so `8788x` and
+ * `87 87` both came back as confident-looking numbers and the server listened
+ * somewhere the person did not mean — with `VITE_SIGNALING_URL` still pointing
+ * at the port they thought they had chosen. The whole string has to match now.
+ *
+ * And a number outside the range — `99999`, `-1` — reached `http.listen`,
+ * which throws a RangeError *synchronously*. The `error` handler never sees
+ * that, so the careful port-in-use reporting was bypassed and it surfaced as
+ * an uncaught exception.
+ */
+function intFromEnv(name: string, fallback: number, min: number, max: number): number {
   const raw = process.env[name];
-  if (raw === undefined || raw === '') return fallback;
-  const parsed = Number.parseInt(raw, 10);
-  if (Number.isNaN(parsed)) {
-    throw new Error(`${name} must be an integer, got "${raw}"`);
+  if (raw === undefined || raw.trim() === '') return fallback;
+
+  const trimmed = raw.trim();
+  if (!/^-?\d+$/.test(trimmed)) {
+    reject(name, raw, `must be a whole number, with nothing else in it`);
+  }
+
+  const parsed = Number.parseInt(trimmed, 10);
+  if (parsed < min || parsed > max) {
+    reject(name, raw, `must be between ${min} and ${max}`);
   }
   return parsed;
 }
 
 export const config = {
-  port: intFromEnv('SIGNALING_PORT', 8787),
+  // 0 is excluded deliberately: it means "any free port", and a server whose
+  // port nothing else can predict is not useful to point a client at.
+  port: intFromEnv('SIGNALING_PORT', 8787, 1, 65535),
   host: process.env['SIGNALING_HOST'] ?? '127.0.0.1',
   /**
    * Phase 0.5 only: every connection lands in one room. Phase 1 replaces this
