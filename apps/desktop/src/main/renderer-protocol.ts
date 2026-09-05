@@ -1,6 +1,8 @@
 import { readFile } from 'node:fs/promises';
-import { extname, join, normalize, sep } from 'node:path';
+import { extname } from 'node:path';
 import { protocol } from 'electron';
+
+import { resolveWithin } from './resolve-path.ts';
 
 /**
  * Serves the renderer over a custom `app://` scheme instead of `file://`.
@@ -42,20 +44,6 @@ export function registerRendererScheme(): void {
       privileges: { standard: true, secure: true, supportFetchAPI: true },
     },
   ]);
-}
-
-/**
- * Resolve a request path to a file inside `root`, refusing anything that
- * escapes it. The renderer is bundled and trusted, but a protocol handler is
- * an entry point, and one that will happily read `../../../etc/passwd` if
- * asked is a bug waiting to be found by someone else.
- */
-function resolveWithin(root: string, requestPath: string): string | null {
-  const decoded = decodeURIComponent(requestPath);
-  const relative = decoded === '/' || decoded === '' ? '/index.html' : decoded;
-  const resolved = normalize(join(root, relative));
-  if (resolved !== root && !resolved.startsWith(root + sep)) return null;
-  return resolved;
 }
 
 export function serveRendererFrom(root: string): void {
