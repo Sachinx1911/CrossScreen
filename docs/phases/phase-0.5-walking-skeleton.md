@@ -11,7 +11,7 @@ Cross-network gate still outstanding. **This is the GO/NO-GO gate.**
 | 2. `candidate-pair` in state `succeeded`     | ✅ **locally** — `path=prflx->host`           |
 | 3. Candidate types logged                    | ✅ both ends print a stats line every 2 s     |
 | 4. Forced-relay run proves TURN              | ⬜ needs TURN credentials and two networks    |
-| 5. Ten minutes without freezing              | ⬜ needs the cross-network run                |
+| 5. Ten minutes without freezing              | ✅ **locally** — 11 min, no drop, no freeze   |
 
 Local measurement, 2026-09-05, Windows 11 / Electron 44.2.0:
 
@@ -22,6 +22,30 @@ transport=direct path=prflx->host rtt=1ms res=1920x1080 fps=21 codec=VP9 avail=3
 VP9 negotiated as intended, and resolution held at full 1080p while the frame
 rate floated — which is `degradationPreference: 'maintain-resolution'` doing
 exactly its job.
+
+Local measurement, 2026-09-06, macOS 15.5 / Electron 44.2.0:
+
+```
+transport=direct path=host->host rtt=0ms res=2940x1912 fps=30 codec=VP9 avail=5070kbps
+```
+
+A Retina display capture, so the frame is larger than the Windows one, and the
+transport still had headroom.
+
+**The soak, criterion 5.** Eleven minutes of continuous sharing, sampled every
+two seconds — 337 stats lines, and across all of them the resolution never
+moved off `2940x1912`, the transport never left `direct`, the codec stayed VP9,
+and nothing logged a disconnect, a failure or a closed peer. Frame rate ranged
+from 1 to 30 fps and that is the intended behaviour rather than a stall: with
+`maintain-resolution`, a screen nobody is touching has almost nothing to
+encode. The stream was confirmed live at the end by watching the viewer follow
+the desktop onto entirely different content, which is the check a stats line
+alone cannot make — a frozen video with a healthy connection prints exactly the
+same numbers.
+
+This is a loopback result. It retires the "does it hold up over time" question
+for the code itself, but criterion 5 is written against two networks and only a
+cross-network run can settle it there.
 
 **Criteria 1, 2 and 5 must be re-run across two networks before the gate
 passes.** Loopback proves the code is wired correctly; it proves nothing about
