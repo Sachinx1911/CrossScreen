@@ -123,8 +123,23 @@ Verified so far:
 | Platform                    | Result      | Details                                                                      |
 | --------------------------- | ----------- | ---------------------------------------------------------------------------- |
 | Windows 11, Electron 44.2.0 | ✅ PASS     | Windows Graphics Capture, 1920x1080 @ 30 fps, `contentHint: 'text'` accepted |
-| macOS 13+                   | not yet run | Phase 3b                                                                     |
+| macOS 15.5, Electron 44.2.0 | ✅ PASS     | ScreenCaptureKit, 2940x1912 @ 30 fps, `contentHint: 'text'` accepted         |
 | Linux GNOME/KDE             | not yet run | Phase 3b                                                                     |
+
+`verify:renderer` also passes on macOS: origin `app://bundle`, secure context,
+zero CSP violations.
+
+> **The first macOS run failed for a reason worth knowing.** `pnpm install` did
+> not fetch the Electron binary despite `electron: true` in `allowBuilds`, so
+> the first `verify:capture` spent its entire 20-second budget downloading
+> Chromium, and `desktopCapturer.getSources()` rejected with
+> `Failed to get sources`. That message is indistinguishable from the missing
+> Screen Recording permission, which is the failure everyone expects on a Mac —
+> so the obvious reading was the wrong one. If a first run on a fresh clone
+> fails that way,
+> **run it a second time before touching System Settings.** To rule it out up
+> front: `pnpm rebuild electron`, or check that
+> `node_modules/.pnpm/electron@*/node_modules/electron/dist` exists.
 
 ## Running the walking skeleton locally
 
