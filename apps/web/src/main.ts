@@ -1,6 +1,7 @@
 import { SignalingClient, formatSnapshot, readConnectionSnapshot } from '@crossscreen/webrtc-core';
 
 import { config, forceRelay, iceServers } from './config.ts';
+import { mustFind } from './dom.ts';
 
 /**
  * Phase 0.5 viewer.
@@ -10,11 +11,11 @@ import { config, forceRelay, iceServers } from './config.ts';
  * No routing, no session codes, no error recovery — those arrive in Phase 1.
  */
 
-const video = document.querySelector<HTMLVideoElement>('#remote')!;
-const hint = document.querySelector<HTMLParagraphElement>('#hint')!;
-const statusEl = document.querySelector<HTMLSpanElement>('#status')!;
-const dot = document.querySelector<HTMLSpanElement>('#dot')!;
-const statsEl = document.querySelector<HTMLElement>('#stats')!;
+const video = mustFind<HTMLVideoElement>('#remote');
+const hint = mustFind<HTMLParagraphElement>('#hint');
+const statusEl = mustFind<HTMLSpanElement>('#status');
+const dot = mustFind<HTMLSpanElement>('#dot');
+const statsEl = mustFind<HTMLElement>('#stats');
 
 function setStatus(text: string, tone: 'idle' | 'live' | 'bad' = 'idle'): void {
   statusEl.textContent = text;
@@ -88,7 +89,11 @@ async function start(): Promise<void> {
 
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
-    signaling.send({ type: 'rtc.answer', to: message.from, sdp: answer.sdp! });
+    if (answer.sdp === undefined) {
+      setStatus('Could not start the connection', 'bad');
+      return;
+    }
+    signaling.send({ type: 'rtc.answer', to: message.from, sdp: answer.sdp });
 
     pollStats();
   });

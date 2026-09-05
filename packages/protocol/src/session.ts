@@ -50,7 +50,7 @@ export type ParticipantState = z.infer<typeof participantStateSchema>;
  * to answer a yes/no question.
  */
 export const joinRequestInfoSchema = z.object({
-  participantId: z.string().uuid(),
+  participantId: z.uuid(),
   /** e.g. "Android · Chrome" — derived server-side, never client-asserted. */
   deviceLabel: z.string().max(64),
   /** Coarse location only: city and country, from IP. Never coordinates. */
@@ -62,7 +62,7 @@ export const joinRequestInfoSchema = z.object({
 export type JoinRequestInfo = z.infer<typeof joinRequestInfoSchema>;
 
 export const participantSchema = z.object({
-  participantId: z.string().uuid(),
+  participantId: z.uuid(),
   role: participantRoleSchema,
   state: participantStateSchema,
   deviceLabel: z.string().max(64),

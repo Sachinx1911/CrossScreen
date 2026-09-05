@@ -20,8 +20,16 @@ function emit(level: Level, event: string, fields: Record<string, unknown> = {})
 }
 
 export const log = {
-  debug: (event: string, fields?: Record<string, unknown>) => emit('debug', event, fields),
-  info: (event: string, fields?: Record<string, unknown>) => emit('info', event, fields),
-  warn: (event: string, fields?: Record<string, unknown>) => emit('warn', event, fields),
-  error: (event: string, fields?: Record<string, unknown>) => emit('error', event, fields),
+  debug: (event: string, fields?: Record<string, unknown>): void => {
+    emit('debug', event, fields);
+  },
+  info: (event: string, fields?: Record<string, unknown>): void => {
+    emit('info', event, fields);
+  },
+  warn: (event: string, fields?: Record<string, unknown>): void => {
+    emit('warn', event, fields);
+  },
+  error: (event: string, fields?: Record<string, unknown>): void => {
+    emit('error', event, fields);
+  },
 };

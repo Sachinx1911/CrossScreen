@@ -6,6 +6,7 @@ import {
 } from '@crossscreen/webrtc-core';
 
 import { STATS_INTERVAL_MS, autoStart, forceRelay, iceServers, signalingUrl } from './config.ts';
+import { mustFind } from './dom.ts';
 
 /**
  * Phase 0.5 sharer.
@@ -16,12 +17,12 @@ import { STATS_INTERVAL_MS, autoStart, forceRelay, iceServers, signalingUrl } fr
  * deliberately absent here.
  */
 
-const shareButton = document.querySelector<HTMLButtonElement>('#share')!;
-const stopButton = document.querySelector<HTMLButtonElement>('#stop')!;
-const preview = document.querySelector<HTMLVideoElement>('#preview')!;
-const statusEl = document.querySelector<HTMLSpanElement>('#status')!;
-const dot = document.querySelector<HTMLSpanElement>('#dot')!;
-const statsEl = document.querySelector<HTMLPreElement>('#stats')!;
+const shareButton = mustFind<HTMLButtonElement>('#share');
+const stopButton = mustFind<HTMLButtonElement>('#stop');
+const preview = mustFind<HTMLVideoElement>('#preview');
+const statusEl = mustFind<HTMLSpanElement>('#status');
+const dot = mustFind<HTMLSpanElement>('#dot');
+const statsEl = mustFind<HTMLPreElement>('#stats');
 
 function setStatus(text: string, tone: 'idle' | 'live' | 'bad' = 'idle'): void {
   statusEl.textContent = text;
@@ -59,7 +60,7 @@ async function startSharing(): Promise<void> {
   // authoritative rather than assuming we are still sharing.
   stream.getVideoTracks()[0]?.addEventListener('ended', () => {
     setStatus('Your device stopped the screen share', 'bad');
-    void stopSharing();
+    stopSharing();
   });
 
   setStatus('Connecting to signaling…');
@@ -70,7 +71,7 @@ async function startSharing(): Promise<void> {
   } catch {
     setStatus('Cannot reach CrossScreen', 'bad');
     statsEl.textContent = `Signaling unreachable at ${signalingUrl()}`;
-    await stopSharing();
+    stopSharing();
     return;
   }
 
@@ -108,7 +109,9 @@ async function startSharing(): Promise<void> {
     statsEl.textContent = 'no connection';
   });
 
-  signaling.on('error', (message) => setStatus(message.userMessage, 'bad'));
+  signaling.on('error', (message) => {
+    setStatus(message.userMessage, 'bad');
+  });
 
   stopButton.disabled = false;
 }
@@ -141,7 +144,11 @@ async function offerTo(remoteId: string): Promise<void> {
     else if (state === 'disconnected') setStatus('Connection unstable', 'bad');
   };
 
-  const track = stream.getVideoTracks()[0]!;
+  const track = stream.getVideoTracks()[0];
+  if (track === undefined) {
+    setStatus('The screen capture ended before it could be shared', 'bad');
+    return;
+  }
   const sender = pc.addTrack(track, stream);
   const transceiver = pc.getTransceivers().find((t) => t.sender === sender);
 
@@ -150,7 +157,11 @@ async function offerTo(remoteId: string): Promise<void> {
 
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
-  signaling.send({ type: 'rtc.offer', to: remoteId, sdp: offer.sdp! });
+  if (offer.sdp === undefined) {
+    setStatus('Could not start the connection', 'bad');
+    return;
+  }
+  signaling.send({ type: 'rtc.offer', to: remoteId, sdp: offer.sdp });
 
   startStatsPolling();
 }
@@ -167,12 +178,14 @@ function startStatsPolling(): void {
   }, STATS_INTERVAL_MS);
 }
 
-async function stopSharing(): Promise<void> {
+function stopSharing(): void {
   if (statsTimer !== undefined) {
     clearInterval(statsTimer);
     statsTimer = undefined;
   }
-  stream?.getTracks().forEach((t) => t.stop());
+  stream?.getTracks().forEach((t) => {
+    t.stop();
+  });
   stream = undefined;
   preview.srcObject = null;
   pc?.close();
@@ -186,7 +199,11 @@ async function stopSharing(): Promise<void> {
   if (!dot.className.includes('bad')) setStatus('Idle');
 }
 
-shareButton.addEventListener('click', () => void startSharing());
-stopButton.addEventListener('click', () => void stopSharing());
+shareButton.addEventListener('click', () => {
+  void startSharing();
+});
+stopButton.addEventListener('click', () => {
+  stopSharing();
+});
 
 if (autoStart()) void startSharing();

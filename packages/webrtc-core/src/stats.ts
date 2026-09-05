@@ -49,7 +49,9 @@ export function classifyTransport(
 export async function readConnectionSnapshot(pc: RTCPeerConnection): Promise<ConnectionSnapshot> {
   const report = await pc.getStats();
   const byId = new Map<string, RTCStats>();
-  report.forEach((stat) => byId.set(stat.id, stat));
+  report.forEach((stat: RTCStats) => {
+    byId.set(stat.id, stat);
+  });
 
   let pair: RTCStats | undefined;
   report.forEach((stat) => {

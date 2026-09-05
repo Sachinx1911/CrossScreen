@@ -111,7 +111,7 @@ export class SkeletonRoom {
   #summary() {
     return {
       joinCode: SKELETON_JOIN_CODE,
-      state: (this.#peers.size > 1 ? 'active' : 'waiting') as 'active' | 'waiting',
+      state: this.#peers.size > 1 ? ('active' as const) : ('waiting' as const),
       createdAt: this.#createdAt,
       expiresAt: this.#createdAt + SESSION_TIMEOUTS.maxLifetimeMs,
       participants: [...this.#peers.values()].map((p) => this.#participant(p)),

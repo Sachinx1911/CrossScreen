@@ -54,11 +54,11 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
   /** Host's decision on a pending viewer. Host-only; server enforces. */
   z.object({
     type: z.literal('session.viewer.approve'),
-    participantId: z.string().uuid(),
+    participantId: z.uuid(),
   }),
   z.object({
     type: z.literal('session.viewer.reject'),
-    participantId: z.string().uuid(),
+    participantId: z.uuid(),
   }),
 
   /** Host ends the session for everyone. */
@@ -67,17 +67,17 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
   // --- WebRTC negotiation. Relayed verbatim; the server never inspects SDP. ---
   z.object({
     type: z.literal('rtc.offer'),
-    to: z.string().uuid(),
+    to: z.uuid(),
     sdp: z.string(),
   }),
   z.object({
     type: z.literal('rtc.answer'),
-    to: z.string().uuid(),
+    to: z.uuid(),
     sdp: z.string(),
   }),
   z.object({
     type: z.literal('rtc.ice'),
-    to: z.string().uuid(),
+    to: z.uuid(),
     candidate: z.string(),
     sdpMid: z.string().nullable(),
     sdpMLineIndex: z.number().int().nullable(),
@@ -85,7 +85,7 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
   /** Request an ICE restart after a network change. */
   z.object({
     type: z.literal('rtc.restart'),
-    to: z.string().uuid(),
+    to: z.uuid(),
   }),
 
   /**
@@ -120,7 +120,7 @@ export const serverMessageSchema = z.discriminatedUnion('type', [
     type: z.literal('session.state'),
     session: sessionSummarySchema,
     /** The recipient's own participant id. */
-    you: z.string().uuid(),
+    you: z.uuid(),
   }),
 
   /** To the host: someone is waiting. Carries what the host needs to decide. */
@@ -132,14 +132,14 @@ export const serverMessageSchema = z.discriminatedUnion('type', [
   /** To the viewer: the host's answer. */
   z.object({
     type: z.literal('session.viewer.approved'),
-    participantId: z.string().uuid(),
+    participantId: z.uuid(),
     /** Scoped to one session and one connection; issued only after approval. */
     participantToken: z.string(),
   }),
   z.object({ type: z.literal('session.viewer.rejected') }),
 
   z.object({ type: z.literal('peer.joined'), participant: participantSchema }),
-  z.object({ type: z.literal('peer.left'), participantId: z.string().uuid() }),
+  z.object({ type: z.literal('peer.left'), participantId: z.uuid() }),
 
   z.object({
     type: z.literal('session.ended'),
@@ -149,22 +149,22 @@ export const serverMessageSchema = z.discriminatedUnion('type', [
   // --- Relayed negotiation, with `from` filled in by the server ---
   z.object({
     type: z.literal('rtc.offer'),
-    from: z.string().uuid(),
+    from: z.uuid(),
     sdp: z.string(),
   }),
   z.object({
     type: z.literal('rtc.answer'),
-    from: z.string().uuid(),
+    from: z.uuid(),
     sdp: z.string(),
   }),
   z.object({
     type: z.literal('rtc.ice'),
-    from: z.string().uuid(),
+    from: z.uuid(),
     candidate: z.string(),
     sdpMid: z.string().nullable(),
     sdpMLineIndex: z.number().int().nullable(),
   }),
-  z.object({ type: z.literal('rtc.restart'), from: z.string().uuid() }),
+  z.object({ type: z.literal('rtc.restart'), from: z.uuid() }),
 
   /**
    * Errors always carry both a machine code and text fit to display.

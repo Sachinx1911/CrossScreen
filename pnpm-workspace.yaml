@@ -13,3 +13,6 @@ allowBuilds:
   esbuild: true
   # Downloads the Chromium runtime the desktop app is built on (ADR-0002).
   electron: true
+
+minimumReleaseAgeExclude:
+  - eslint@10.10.0

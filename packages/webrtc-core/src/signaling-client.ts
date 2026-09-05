@@ -23,8 +23,12 @@ export class SignalingClient {
       const socket = new WebSocket(this.url);
       this.#socket = socket;
 
-      socket.onopen = () => resolve();
-      socket.onerror = () => reject(new Error(`Could not reach signaling at ${this.url}`));
+      socket.onopen = (): void => {
+        resolve();
+      };
+      socket.onerror = (): void => {
+        reject(new Error(`Could not reach signaling at ${this.url}`));
+      };
 
       socket.onmessage = (event: MessageEvent<string>) => {
         const parsed = parseServerEnvelope(event.data);

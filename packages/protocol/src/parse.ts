@@ -52,7 +52,7 @@ function parseEnvelope<T>(
   // Check the version before the shape, so an old client gets "please update"
   // rather than a confusing validation failure.
   if (typeof json === 'object' && json !== null && 'v' in json) {
-    const v = (json as { v: unknown }).v;
+    const { v } = json;
     if (v !== PROTOCOL_VERSION) {
       return {
         ok: false,
