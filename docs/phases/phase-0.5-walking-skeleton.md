@@ -35,9 +35,9 @@ NAT traversal, which is the entire point of the exercise.
   connection looked healthy and nothing ever arrived. Now uses `TextEncoder` /
   `TextDecoder`, with a regression test that deletes `globalThis.Buffer`.
 - **CSP `'self'` does not match `file://`.** A textbook `script-src 'self'`
-  blocked the renderer bundle outright and the window just sat there. Phase 1
-  should serve the renderer over a custom `app://` protocol so `'self'` means
-  something.
+  blocked the renderer bundle outright and the window just sat there. **Fixed:**
+  the renderer is now served over a custom `app://` scheme with a real origin,
+  so the policy is tight and `verify:renderer` guards it.
 - **`getDisplayMedia` needs a secure context**, and a `data:` URL is not one —
   `navigator.mediaDevices` is simply `undefined` there.
 - **Vite's `envDir` defaults to `root`**, so `.env.local` beside `package.json`

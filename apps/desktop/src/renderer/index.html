@@ -3,16 +3,17 @@
   <head>
     <meta charset="utf-8" />
     <!--
-      The renderer is loaded from a file:// URL, where CSP 'self' does NOT
-      match the page's own assets — a bare script-src 'self' blocks the bundle
-      entirely and the page silently does nothing. Hence the explicit `file:`.
+      The renderer is served over the custom app:// scheme (see
+      src/main/renderer-protocol.ts), which gives it a real origin, so 'self'
+      means something and this policy can stay tight. On a file:// page 'self'
+      matches nothing and a policy like this blocks the app's own bundle.
 
-      Phase 1 should serve the renderer over a custom app:// protocol instead,
-      which makes 'self' meaningful and lets this be tightened properly.
+      connect-src stays open to ws/wss because the signaling URL is
+      configuration, not a fixed host.
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'self' file:; style-src 'self' file: 'unsafe-inline'; img-src 'self' file: data:; media-src 'self' file: blob:; connect-src ws: wss:; object-src 'none'; base-uri 'none'; form-action 'none'"
+      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; connect-src ws: wss:; object-src 'none'; base-uri 'none'; form-action 'none'"
     />
     <title>CrossScreen — Sharer (skeleton)</title>
     <style>

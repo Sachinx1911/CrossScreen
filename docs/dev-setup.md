@@ -31,6 +31,18 @@ It prints what it captured and exits non-zero on failure. **Run this on every
 new platform and after every major Electron upgrade.** If it fails, the desktop
 architecture is wrong and nothing built on top of it is safe.
 
+A second probe checks the renderer itself:
+
+```bash
+pnpm --filter @crossscreen/desktop run verify:renderer
+```
+
+It confirms the page runs under its own Content-Security-Policy, in a secure
+context, with the bundle actually executing. Both failures it guards against
+were silent when we hit them: a blocked script leaves a page that looks
+completely normal, and outside a secure context `navigator.mediaDevices` is
+`undefined` rather than empty.
+
 Verified so far:
 
 | Platform                    | Result      | Details                                                                      |

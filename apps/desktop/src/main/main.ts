@@ -2,6 +2,8 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { app, BrowserWindow, desktopCapturer, session } from 'electron';
 
+import { RENDERER_ENTRY, registerRendererScheme, serveRendererFrom } from './renderer-protocol.ts';
+
 /**
  * Electron main process — Phase 0.5.
  *
@@ -43,7 +45,7 @@ function createWindow(): BrowserWindow {
     console.log(prefix, event.message);
   });
 
-  void window.loadFile(join(here, '..', 'renderer', 'index.html'));
+  void window.loadURL(RENDERER_ENTRY);
   return window;
 }
 
@@ -82,7 +84,12 @@ function installDisplayMediaHandler(): void {
   );
 }
 
+// Must happen before the app is ready, or the scheme is not privileged and
+// the renderer loses both its origin and its secure context.
+registerRendererScheme();
+
 void app.whenReady().then(() => {
+  serveRendererFrom(join(here, '..', 'renderer'));
   installDisplayMediaHandler();
   createWindow();
 
