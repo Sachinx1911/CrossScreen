@@ -147,47 +147,73 @@ remembering to point `VITE_SIGNALING_URL` at the same port.
 
 This is the **GO/NO-GO gate**. Local success proves nothing about NAT traversal.
 
-### 1. Expose the signaling server
+### 1. Install cloudflared, once
 
-`localhost` is not reachable from another network, so put a tunnel in front:
+```powershell
+winget install --id Cloudflare.cloudflared
+```
+
+macOS: `brew install cloudflared`. Open a **new terminal** afterwards, or the
+old one will not have it on PATH.
+
+### 2. Start one tunnel
+
+`localhost` is not reachable from another network. Both the viewer page and
+signaling need to be, and **one tunnel covers both** — the Vite dev server
+proxies `/ws` through to the signaling port:
 
 ```bash
-cloudflared tunnel --url http://127.0.0.1:8787
+pnpm dev
 ```
 
-It prints a public `https://…trycloudflare.com` URL. The WebSocket URL is the
-same host with `wss://`.
-
-### 2. Point both ends at it
-
-`apps/web/.env.local` and `apps/desktop/.env.local`:
-
-```
-VITE_SIGNALING_URL=wss://your-tunnel-hostname.trycloudflare.com
+```bash
+cloudflared tunnel --url http://127.0.0.1:5173
 ```
 
-The tunnel hostname changes every restart, which is why it is configuration
-rather than code, and why `.env.local` is not committed.
+It prints a public `https://…trycloudflare.com` URL. That single URL is:
 
-### 3. Run the test
+|            |                               |
+| ---------- | ----------------------------- |
+| the viewer | `https://…trycloudflare.com/` |
+| signaling  | `wss://…trycloudflare.com/ws` |
 
-1. Start the signaling server and the tunnel on the sharing machine.
-2. Start the desktop app there and press **Start Sharing**.
-3. On the second device, **on a different network**, open the web viewer.
-4. Watch the stats line on both ends.
+### 3. Point the desktop app at it
 
-### 4. Prove the relay path separately
+**The viewer needs no configuration at all** — it falls back to same-origin
+`/ws`, which works locally and through the tunnel alike. Only the desktop app
+does, because it is not served by Vite. In `apps/desktop/.env.local`:
+
+```
+VITE_SIGNALING_URL=wss://your-tunnel.trycloudflare.com/ws
+```
+
+Then restart `pnpm dev`, because that value is baked in at build time.
+
+The hostname changes on every `cloudflared` restart, which is why it is
+configuration and why `.env.local` is not committed.
+
+### 4. Run the test
+
+1. Press **Start Sharing** in the desktop window.
+2. On your phone, **turn Wi-Fi off so it is on mobile data**, and open the
+   tunnel URL.
+3. Watch the stats line at the bottom of the viewer.
+
+Mobile data is the point. Two devices on the same Wi-Fi tell you nothing about
+NAT traversal, which is the entire reason this gate exists.
+
+### 5. Prove the relay path separately
 
 P2P succeeding is not proof that TURN works, and a TURN path that has never
 been exercised is a TURN path that does not work. Force it:
 
 - **Viewer:** append `?relay=1` to the URL.
-- **Sharer:** set `VITE_FORCE_RELAY=1` and rebuild.
+- **Sharer:** set `VITE_FORCE_RELAY=1` and restart.
 
-This needs real TURN credentials in `.env.local` — see `.env.example`. Cloudflare
-Realtime TURN is free for the first 1 TB per month (ADR-0004).
+This needs real TURN credentials in `.env.local` — see `.env.example`.
+Cloudflare Realtime TURN is free for the first 1 TB per month (ADR-0004).
 
-### 5. Record the result
+### 6. Record the result
 
 The five exit criteria are in
 [`phases/phase-0.5-walking-skeleton.md`](phases/phase-0.5-walking-skeleton.md).
