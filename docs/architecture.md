@@ -346,17 +346,18 @@ crossscreen/
 
 ## 13. Risk register (living)
 
-| Risk                                              | Sev  | Mitigation                                                                                          |
-| ------------------------------------------------- | ---- | --------------------------------------------------------------------------------------------------- |
-| iOS sharing may never be economically worth it    | High | Deferred; product positioned as "share from computer/Android, watch anywhere"                       |
-| TURN bandwidth cost scales with failed P2P        | High | Measure P2P success rate from day one; Cloudflare's 1 TB free tier covers MVP; alert on relay ratio |
-| Wayland fragmentation beyond GNOME/KDE            | Med  | Explicit support list; graceful "your desktop isn't supported yet" message                          |
-| Android capture dies on screen lock (OS-enforced) | Med  | Product-level: warn the user before sharing; not fixable                                            |
-| Electron bundle size hurts install conversion     | Med  | Accepted; measure download→install funnel                                                           |
-| Tech-support-scam abuse of the platform           | Med  | Persistent banner, approval flow, abuse logging, report endpoint                                    |
-| Protocol drift between TS and Kotlin clients      | Med  | Types generated from one JSON Schema in `packages/protocol`                                         |
-| Corporate firewalls blocking non-443              | Low  | TURN over TLS/443 is default, not a fallback                                                        |
-| Code signing / notarization cost & lead time      | Low  | Budget in Phase 3; Apple Developer + Windows cert                                                   |
+| Risk                                                                      | Sev  | Mitigation                                                                                          |
+| ------------------------------------------------------------------------- | ---- | --------------------------------------------------------------------------------------------------- |
+| iOS sharing may never be economically worth it                            | High | Deferred; product positioned as "share from computer/Android, watch anywhere"                       |
+| TURN bandwidth cost scales with failed P2P                                | High | Measure P2P success rate from day one; Cloudflare's 1 TB free tier covers MVP; alert on relay ratio |
+| Linux hardware for Phase 3b validation is not yet arranged (a Mac now is) | Med  | Borrow, dual-boot or use a VM; GNOME and KDE, on Wayland and X11, are the only support commitment   |
+| Wayland fragmentation beyond GNOME/KDE                                    | Med  | Explicit support list; graceful "your desktop isn't supported yet" message                          |
+| Android capture dies on screen lock (OS-enforced)                         | Med  | Product-level: warn the user before sharing; not fixable                                            |
+| Electron bundle size hurts install conversion                             | Med  | Accepted; measure download→install funnel                                                           |
+| Tech-support-scam abuse of the platform                                   | Med  | Persistent banner, approval flow, abuse logging, report endpoint                                    |
+| Protocol drift between TS and Kotlin clients                              | Med  | Types generated from one JSON Schema in `packages/protocol`                                         |
+| Corporate firewalls blocking non-443                                      | Low  | TURN over TLS/443 is default, not a fallback                                                        |
+| Code signing / notarization cost & lead time                              | Low  | Budget in Phase 3; Apple Developer + Windows cert                                                   |
 
 ---
 

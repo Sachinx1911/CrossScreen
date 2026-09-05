@@ -12,10 +12,11 @@
     "node": ">=22"
   },
   "scripts": {
+    "setup": "node scripts/setup.mjs",
     "build": "turbo run build",
     "dev": "turbo run dev",
     "test": "turbo run test",
-    "lint": "eslint .",
+    "lint": "turbo run build --output-logs=errors-only && eslint .",
     "typecheck": "turbo run typecheck",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -24,7 +25,7 @@
     "dev:web": "pnpm --filter @crossscreen/web dev",
     "dev:desktop": "pnpm --filter @crossscreen/desktop dev",
     "verify:capture": "pnpm --filter @crossscreen/desktop run verify:capture",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "turbo run build --output-logs=errors-only && eslint . --fix"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

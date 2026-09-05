@@ -9,14 +9,53 @@
   on mobile data is ideal, because it is the case most likely to fail.
 
 ```bash
-pnpm install
+pnpm setup
+```
+
+That installs dependencies, builds the workspace packages, and creates the
+`.env.local` files from their examples. Then:
+
+```bash
 pnpm typecheck && pnpm test
 ```
+
+> **The build step is not optional on a fresh clone.** ESLint's type-aware
+> rules resolve workspace imports through the generated declaration files, so
+> linting a clone that has never been built fails with "could not be resolved"
+> rather than anything useful. `pnpm lint` therefore builds first, and turbo
+> caches it so repeat runs cost nothing.
 
 Dependency install scripts are blocked by default in `pnpm-workspace.yaml`.
 Two are allowed deliberately: `esbuild` (places the Vite binary) and
 `electron` (downloads the Chromium runtime). Adding a third is a decision, not
 a convenience — each one is an arbitrary command from a third party.
+
+## Working across two machines
+
+This project moves between a Windows PC and a Mac over git. Three things are
+deliberately not committed and must be recreated on each machine — `pnpm setup`
+does all three:
+
+| Not in git      | Why                                                    | Recreated by               |
+| --------------- | ------------------------------------------------------ | -------------------------- |
+| `node_modules/` | Platform-specific binaries, Electron among them        | `pnpm install`             |
+| `dist/`         | Build output; also what the type-aware lint rules read | `pnpm build`               |
+| `.env.local`    | Machine-specific, and the tunnel URL changes every run | copied from `.env.example` |
+
+Line endings are normalised to LF by `.gitattributes`, so no file should ever
+appear modified purely from switching machines. If one does, that is a bug in
+the attributes rather than something to work around.
+
+**On the Mac, run `verify:capture` first.** It is the only thing that confirms
+Chromium's ScreenCaptureKit path works there, and macOS asks for Screen
+Recording permission the first time — the app has to be restarted after
+granting it before capture actually starts working. A user who is not told that
+concludes the product is broken, which is why Phase 3b treats the permission
+flow as the real work rather than the capture itself.
+
+Having both machines also unblocks two things the plan assumed would wait:
+the cross-network gate below, and the macOS half of
+[Phase 3b](phases/phase-3b-macos-linux.md).
 
 ## Verifying the desktop capture assumption
 

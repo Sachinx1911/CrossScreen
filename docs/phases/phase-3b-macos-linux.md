@@ -3,6 +3,13 @@
 **Estimate:** 2–3 weeks part-time · **Depends on:** Phase 3a
 **Needs:** access to a Mac, and a Linux machine or VM
 
+> **Update, 2026-09-05:** a Mac is now part of the regular development setup —
+> the project moves between a Windows PC and a Mac over git. The macOS half of
+> this phase is therefore no longer gated on borrowed hardware, and the capture
+> and permission checks can be run opportunistically long before Phase 3b
+> formally starts. Doing so is cheap and turns a late surprise into an early
+> one. Linux remains the part that needs arranging.
+
 ## Goal
 
 Promote macOS and Linux from _built but untested_ to _supported_. The code has

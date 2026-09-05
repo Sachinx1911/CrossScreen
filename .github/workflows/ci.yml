@@ -15,16 +15,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # No `version:` here on purpose. action-setup v4 refuses to run when a
+      # version is given here *and* in package.json's `packageManager` field,
+      # to avoid the two drifting apart. packageManager is the single source.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 11
 
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+      - name: Install
+        # Nothing in CI launches Electron, and the runtime is a ~100 MB
+        # download per run. Its TypeScript definitions ship in the npm package
+        # either way, so typecheck and lint are unaffected.
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+        run: pnpm install --frozen-lockfile
+
+      # Everything after this needs the workspace packages' generated types.
+      - name: Build
+        run: pnpm build
 
       - name: Format check
         run: pnpm format:check
