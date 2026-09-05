@@ -6,8 +6,39 @@ Cross-platform, real-time screen sharing. Share your screen from a computer,
 watch it in any browser — desktop, Android, or iOS — with nothing to install
 on the viewer's side.
 
-> **Status: Phase 0 — foundation.** Not yet usable. See
-> [`docs/roadmap.md`](docs/roadmap.md) for what ships when.
+> **Status: Phase 0.5 — walking skeleton.** Not yet a product. A desktop
+> screen reaches a browser viewer over WebRTC, which is all this phase is meant
+> to prove. See [`docs/roadmap.md`](docs/roadmap.md) for what ships when.
+
+### Picking this up on another machine
+
+```bash
+pnpm setup     # install, build, create .env.local files
+pnpm dev       # signaling + web viewer + Electron sharer
+```
+
+**Next task: finish the Phase 0.5 gate.** Four of its five criteria are still
+open, all blocked on the same thing.
+
+The first cross-network attempt — a PC sharing to a phone on mobile data —
+**failed to connect at all.** Signaling was fine and the offer and answer were
+exchanged, but ICE found no direct path and no relay was configured to fall
+back to. Mobile carriers put subscribers behind carrier-grade NAT, so this is
+the ordinary case, not bad luck. It settles something the architecture had only
+assumed: TURN is load-bearing for the main use case, not a fallback for unlucky
+networks.
+
+To unblock it, create a Cloudflare TURN key and run `pnpm turn` — the steps are
+in [`docs/dev-setup.md`](docs/dev-setup.md). Then `pnpm tunnel`, `pnpm dev`, and
+open the printed URL on a phone **with Wi-Fi off**.
+
+On a Mac, run this first — it is the only thing that confirms Chromium's
+ScreenCaptureKit path works there, and macOS asks for Screen Recording
+permission the first time:
+
+```bash
+pnpm --filter @crossscreen/desktop run verify:capture
+```
 
 ---
 
