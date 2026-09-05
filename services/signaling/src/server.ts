@@ -125,6 +125,24 @@ function relay(
   log.debug('relay', { type: payload.type, from: peer.id, to: target.id });
 }
 
+function onListenError(err: NodeJS.ErrnoException): void {
+  if (err.code === 'EADDRINUSE') {
+    log.error('signaling.port_in_use', {
+      port: config.port,
+      hint: 'Another signaling server is already running. Stop it, or set SIGNALING_PORT.',
+    });
+    process.exit(1);
+  }
+  log.error('signaling.listen_failed', { message: err.message });
+  process.exit(1);
+}
+
+// `ws` re-emits the HTTP server's errors on the WebSocketServer, so both need
+// a handler or a port clash becomes an unhandled 'error' event and a stack
+// trace instead of a message the developer can act on.
+http.on('error', onListenError);
+wss.on('error', onListenError);
+
 http.listen(config.port, config.host, () => {
   log.info('signaling.listening', {
     host: config.host,

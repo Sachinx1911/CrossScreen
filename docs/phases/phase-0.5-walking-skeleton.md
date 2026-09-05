@@ -1,6 +1,50 @@
 # Phase 0.5 — Walking Skeleton
 
-**Estimate:** 1–2 weeks · **Status:** Next · **This is the GO/NO-GO gate.**
+**Estimate:** 1–2 weeks · **Status:** Code complete; **local loop verified**.
+Cross-network gate still outstanding. **This is the GO/NO-GO gate.**
+
+## Progress
+
+| Exit criterion                               | Status                                        |
+| -------------------------------------------- | --------------------------------------------- |
+| 1. Viewer sees the live screen, text legible | ✅ **locally** — 1920x1080, VP9, no downscale |
+| 2. `candidate-pair` in state `succeeded`     | ✅ **locally** — `path=prflx->host`           |
+| 3. Candidate types logged                    | ✅ both ends print a stats line every 2 s     |
+| 4. Forced-relay run proves TURN              | ⬜ needs TURN credentials and two networks    |
+| 5. Ten minutes without freezing              | ⬜ needs the cross-network run                |
+
+Local measurement, 2026-09-05, Windows 11 / Electron 44.2.0:
+
+```
+transport=direct path=prflx->host rtt=1ms res=1920x1080 fps=21 codec=VP9 avail=300kbps
+```
+
+VP9 negotiated as intended, and resolution held at full 1080p while the frame
+rate floated — which is `degradationPreference: 'maintain-resolution'` doing
+exactly its job.
+
+**Criteria 1, 2 and 5 must be re-run across two networks before the gate
+passes.** Loopback proves the code is wired correctly; it proves nothing about
+NAT traversal, which is the entire point of the exercise.
+
+### Bugs this phase has already caught
+
+- **`Buffer` is not defined in a browser.** `parse.ts` used Node's `Buffer` for
+  the size check and for decoding binary frames, so every browser client threw
+  inside its WebSocket message handler and silently dropped every frame. The
+  connection looked healthy and nothing ever arrived. Now uses `TextEncoder` /
+  `TextDecoder`, with a regression test that deletes `globalThis.Buffer`.
+- **CSP `'self'` does not match `file://`.** A textbook `script-src 'self'`
+  blocked the renderer bundle outright and the window just sat there. Phase 1
+  should serve the renderer over a custom `app://` protocol so `'self'` means
+  something.
+- **`getDisplayMedia` needs a secure context**, and a `data:` URL is not one —
+  `navigator.mediaDevices` is simply `undefined` there.
+- **Vite's `envDir` defaults to `root`**, so `.env.local` beside `package.json`
+  was being ignored by the desktop build.
+- **A port clash crashed the signaling server** with an unhandled `error`
+  event, because `ws` re-emits the HTTP server's errors on the
+  `WebSocketServer`. Both now report a message the developer can act on.
 
 ## Goal
 

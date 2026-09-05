@@ -31,4 +31,15 @@ export function forceRelay(): boolean {
   return env['VITE_FORCE_RELAY'] === '1';
 }
 
+/**
+ * Starts sharing without waiting for a click.
+ *
+ * For automated local verification only — a real sharer must always be an
+ * explicit user action, and Phase 1 adds the source picker and the first-share
+ * safety notice in front of it.
+ */
+export function autoStart(): boolean {
+  return env['VITE_AUTOSTART'] === '1';
+}
+
 export const STATS_INTERVAL_MS = 2000;

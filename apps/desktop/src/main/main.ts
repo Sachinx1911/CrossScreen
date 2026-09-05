@@ -35,6 +35,14 @@ function createWindow(): BrowserWindow {
     },
   });
 
+  // Forward renderer console output to the terminal. Without this the stats
+  // lines the Phase 0.5 gate is read from are only visible in devtools, which
+  // makes any scripted or headless run blind.
+  window.webContents.on('console-message', (event) => {
+    const prefix = event.level === 'error' ? '[renderer:error]' : '[renderer]';
+    console.log(prefix, event.message);
+  });
+
   void window.loadFile(join(here, '..', 'renderer', 'index.html'));
   return window;
 }

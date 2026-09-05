@@ -115,3 +115,45 @@ test('SDP is relayed as an opaque string and never inspected', () => {
   const result = parseClientEnvelope(frame);
   assert.equal(result.ok, true);
 });
+
+test('parsing works with no Node globals — browsers have no Buffer', () => {
+  // The walking skeleton caught this the hard way: the first version used
+  // Buffer for the size check and for decoding, so every browser client threw
+  // ReferenceError inside its WebSocket message handler and silently dropped
+  // every frame. The connection looked fine and nothing ever arrived.
+  const savedBuffer = (globalThis as { Buffer?: unknown }).Buffer;
+  delete (globalThis as { Buffer?: unknown }).Buffer;
+
+  try {
+    const frame = JSON.stringify(envelope({ type: 'ping' }));
+    assert.equal(parseClientEnvelope(frame).ok, true);
+
+    // Binary frames take the TextDecoder path.
+    const bytes = new TextEncoder().encode(frame);
+    assert.equal(parseClientEnvelope(bytes).ok, true);
+  } finally {
+    (globalThis as { Buffer?: unknown }).Buffer = savedBuffer;
+  }
+});
+
+test('multi-byte characters are measured in bytes, not code units', () => {
+  // A four-byte emoji is two UTF-16 code units, so a naive `.length` check
+  // would under-count and let an oversized frame through.
+  const emoji = '😀';
+  assert.equal(emoji.length, 2);
+  assert.equal(new TextEncoder().encode(emoji).length, 4);
+
+  const oversized = JSON.stringify({
+    v: 1,
+    id: 'a',
+    ts: Date.now(),
+    payload: {
+      type: 'rtc.offer',
+      to: '00000000-0000-4000-8000-000000000000',
+      sdp: emoji.repeat(20000),
+    },
+  });
+  const result = parseClientEnvelope(oversized);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.code, 'MESSAGE_TOO_LARGE');
+});

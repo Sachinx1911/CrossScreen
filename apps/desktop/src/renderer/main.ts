@@ -5,7 +5,7 @@ import {
   tuneScreenShare,
 } from '@crossscreen/webrtc-core';
 
-import { STATS_INTERVAL_MS, forceRelay, iceServers, signalingUrl } from './config.ts';
+import { STATS_INTERVAL_MS, autoStart, forceRelay, iceServers, signalingUrl } from './config.ts';
 
 /**
  * Phase 0.5 sharer.
@@ -26,6 +26,8 @@ const statsEl = document.querySelector<HTMLPreElement>('#stats')!;
 function setStatus(text: string, tone: 'idle' | 'live' | 'bad' = 'idle'): void {
   statusEl.textContent = text;
   dot.className = `dot${tone === 'idle' ? '' : ` ${tone}`}`;
+  // Logged as well as shown: a scripted run has no eyes on the window.
+  console.info('[%s] %s', 'sharer', text);
 }
 
 let signaling: SignalingClient | undefined;
@@ -186,3 +188,5 @@ async function stopSharing(): Promise<void> {
 
 shareButton.addEventListener('click', () => void startSharing());
 stopButton.addEventListener('click', () => void stopSharing());
+
+if (autoStart()) void startSharing();

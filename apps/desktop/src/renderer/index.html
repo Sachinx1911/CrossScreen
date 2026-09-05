@@ -2,6 +2,18 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <!--
+      The renderer is loaded from a file:// URL, where CSP 'self' does NOT
+      match the page's own assets — a bare script-src 'self' blocks the bundle
+      entirely and the page silently does nothing. Hence the explicit `file:`.
+
+      Phase 1 should serve the renderer over a custom app:// protocol instead,
+      which makes 'self' meaningful and lets this be tightened properly.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self' file:; style-src 'self' file: 'unsafe-inline'; img-src 'self' file: data:; media-src 'self' file: blob:; connect-src ws: wss:; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
     <title>CrossScreen — Sharer (skeleton)</title>
     <style>
       :root {

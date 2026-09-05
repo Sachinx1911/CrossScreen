@@ -20,18 +20,31 @@ import {
 export type ParseResult<T> =
   { ok: true; value: T } | { ok: false; code: ErrorCode; detail: string };
 
+/**
+ * UTF-8 byte length without Node's Buffer, which does not exist in a browser
+ * or an Electron renderer.
+ *
+ * A string's `.length` counts UTF-16 code units, which is always less than or
+ * equal to its UTF-8 byte length, so an over-length string is rejected without
+ * being encoded at all.
+ */
+function utf8ByteLength(text: string): number {
+  if (text.length > MAX_MESSAGE_BYTES) return text.length;
+  return new TextEncoder().encode(text).length;
+}
+
 function parseEnvelope<T>(
   raw: string | Uint8Array,
   schema: { safeParse: (v: unknown) => { success: boolean; data?: unknown; error?: unknown } },
 ): ParseResult<T> {
-  const byteLength = typeof raw === 'string' ? Buffer.byteLength(raw, 'utf8') : raw.byteLength;
+  const byteLength = typeof raw === 'string' ? utf8ByteLength(raw) : raw.byteLength;
   if (byteLength > MAX_MESSAGE_BYTES) {
     return { ok: false, code: 'MESSAGE_TOO_LARGE', detail: `${byteLength} bytes` };
   }
 
   let json: unknown;
   try {
-    json = JSON.parse(typeof raw === 'string' ? raw : Buffer.from(raw).toString('utf8'));
+    json = JSON.parse(typeof raw === 'string' ? raw : new TextDecoder().decode(raw));
   } catch {
     return { ok: false, code: 'MALFORMED_MESSAGE', detail: 'not valid JSON' };
   }

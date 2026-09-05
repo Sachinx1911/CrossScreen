@@ -10,6 +10,10 @@ import { defineConfig } from 'vite';
  */
 export default defineConfig({
   root: resolve(import.meta.dirname, 'src/renderer'),
+  // `envDir` defaults to `root`, which would look for .env files inside
+  // src/renderer. They belong beside package.json, with the rest of the app's
+  // configuration.
+  envDir: import.meta.dirname,
   base: './',
   build: {
     outDir: resolve(import.meta.dirname, 'dist/renderer'),
