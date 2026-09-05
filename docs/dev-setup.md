@@ -308,16 +308,31 @@ run is a run half wasted.
 
 ## Environment variables
 
-| Variable               | Used by      | Purpose                               |
-| ---------------------- | ------------ | ------------------------------------- |
-| `SIGNALING_PORT`       | signaling    | Listen port (default 8787)            |
-| `SIGNALING_HOST`       | signaling    | Bind address (default 127.0.0.1)      |
-| `LOG_LEVEL`            | signaling    | `debug`, `info`, `warn`, `error`      |
-| `VITE_SIGNALING_URL`   | web, desktop | WebSocket URL of the signaling server |
-| `VITE_TURN_URLS`       | web, desktop | Comma-separated TURN URLs             |
-| `VITE_TURN_USERNAME`   | web, desktop | TURN username                         |
-| `VITE_TURN_CREDENTIAL` | web, desktop | TURN credential                       |
-| `VITE_FORCE_RELAY`     | desktop      | `1` pins ICE to relay only            |
+| Variable                    | Used by        | Purpose                                                |
+| --------------------------- | -------------- | ------------------------------------------------------ |
+| `SIGNALING_PORT`            | signaling      | Listen port (default 8787)                             |
+| `SIGNALING_HOST`            | signaling      | Bind address (default 127.0.0.1)                       |
+| `LOG_LEVEL`                 | signaling      | `debug`, `info`, `warn`, `error`                       |
+| `SIGNALING_TARGET`          | web dev server | Where `/ws` is proxied (default `ws://127.0.0.1:8787`) |
+| `VITE_SIGNALING_URL`        | web, desktop   | WebSocket URL of the signaling server                  |
+| `VITE_TURN_URLS`            | web, desktop   | Comma-separated TURN URLs                              |
+| `VITE_TURN_USERNAME`        | web, desktop   | TURN username                                          |
+| `VITE_TURN_CREDENTIAL`      | web, desktop   | TURN credential                                        |
+| `VITE_FORCE_RELAY`          | desktop        | `1` pins ICE to relay only                             |
+| `VITE_AUTOSTART`            | desktop        | `1` starts sharing without a click                     |
+| `CROSSSCREEN_SIGNALING_URL` | desktop main   | Overrides `.tunnel-url` at launch                      |
+
+> **`VITE_AUTOSTART` shares your screen the moment the app opens.** It exists so
+> a scripted run does not need someone to press a button, and it is why the
+> capture and renderer probes can be automated. Do not leave it set in a
+> `.env.local` you use day to day: a sharer that starts without an explicit
+> action is the one thing this product must never be.
+
+**Changing the port takes two variables, not one.** `SIGNALING_PORT` moves the
+server; the viewer then reaches it either directly through `VITE_SIGNALING_URL`
+or through the dev server's `/ws` proxy, whose target is `SIGNALING_TARGET`.
+Move the port without the one the viewer actually uses and the page loads
+perfectly and never connects.
 
 > **Disclosed shortcut.** Build-time TURN credentials are Phase 0.5 only. Phase 2
 > replaces them with `GET /api/v1/ice-servers` issuing short-lived credentials,
