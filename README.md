@@ -17,8 +17,9 @@ pnpm setup     # install, build, create .env.local files
 pnpm dev       # signaling + web viewer + Electron sharer
 ```
 
-**Next task: finish the Phase 0.5 gate.** Four of its five criteria are still
-open, all blocked on the same thing.
+**Next task: finish the Phase 0.5 gate.** One of its five criteria is open
+outright, and three more pass on loopback but have to be re-run across two
+networks before they count. All four are blocked on the same thing.
 
 The first cross-network attempt — a PC sharing to a phone on mobile data —
 **failed to connect at all.** Signaling was fine and the offer and answer were
@@ -32,9 +33,11 @@ To unblock it, create a Cloudflare TURN key and run `pnpm turn` — the steps ar
 in [`docs/dev-setup.md`](docs/dev-setup.md). Then `pnpm tunnel`, `pnpm dev`, and
 open the printed URL on a phone **with Wi-Fi off**.
 
-On a Mac, run this first — it is the only thing that confirms Chromium's
-ScreenCaptureKit path works there, and macOS asks for Screen Recording
-permission the first time:
+Capture itself is no longer in question on either desktop platform. It is
+verified on Windows 11 and on macOS 15.5 — ScreenCaptureKit, 2940x1912 at
+30 fps — and an eleven-minute loopback run on the Mac held resolution and codec
+steady without a drop. Run the check anyway on a machine or platform that has
+not seen it, because macOS asks for Screen Recording permission the first time:
 
 ```bash
 pnpm --filter @crossscreen/desktop run verify:capture
