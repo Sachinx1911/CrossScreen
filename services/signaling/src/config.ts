@@ -55,5 +55,8 @@ export const config = {
    * with real sessions, join codes and host approval.
    */
   skeletonRoomId: 'skeleton',
-  logLevel: process.env['LOG_LEVEL'] ?? 'info',
+  // LOG_LEVEL is deliberately absent. It is read in log.ts instead, because
+  // this module logs its own rejections and cannot import a logger that
+  // imports it back. A `logLevel` here would be read by nothing and changing
+  // it would do nothing, which is worse than not offering it.
 } as const;

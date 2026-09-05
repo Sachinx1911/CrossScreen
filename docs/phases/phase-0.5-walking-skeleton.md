@@ -26,11 +26,13 @@ exactly its job.
 Local measurement, 2026-09-06, macOS 15.5 / Electron 44.2.0:
 
 ```
-transport=direct path=host->host rtt=0ms res=2940x1912 fps=30 codec=VP9 avail=5070kbps
+transport=direct path=host->host rtt=1ms res=1658x1078 fps=30 codec=VP9 avail=5302kbps
 ```
 
-A Retina display capture, so the frame is larger than the Windows one, and the
-transport still had headroom.
+The Retina screen captures at 2940x1912 and is now capped down to 1658x1078 —
+§9's 1920x1080 ceiling, fitted to the display's aspect ratio. Text stayed
+legible in the viewer at that size, which is criterion 1. The soak below was
+measured before the cap existed, at the full 2940x1912.
 
 **The soak, criterion 5.** Eleven minutes of continuous sharing, sampled every
 two seconds — 337 stats lines, and across all of them the resolution never
@@ -67,6 +69,17 @@ NAT traversal, which is the entire point of the exercise.
   triggers it, since forcing relay means restarting the sharer with the viewer
   still open. Both ends now close the connection they are replacing, handlers
   detached first so the close itself delivers nothing.
+- **The 1920x1080 resolution cap was never applied.** Architecture §9 lists it
+  beside `contentHint` and `degradationPreference`; the other two were
+  implemented and this one was not, and `MEDIA_DEFAULTS.maxWidth` and
+  `maxHeight` were read by nothing at all. It hid because the machine it was
+  first measured on has a 1080p display, so the capture came in under the
+  ceiling by itself and the baseline recorded `1920x1080` as though the cap had
+  done it. The Mac gave 2940x1912 — 5.6 megapixels against the 2.1 the contract
+  states — and the pixels that costs are affordable on loopback and precisely
+  the wrong surprise on a phone over mobile data, where they would read as a
+  network problem. Now capped to 1658x1078, aspect ratio kept, text still
+  legible in the viewer.
 - **A stopped tunnel left its URL behind.** `pnpm tunnel` deleted
   `.tunnel-url` on SIGINT and on the child exiting, which covers Ctrl+C and
   cloudflared dying, and nothing else. Killed with SIGTERM — an IDE stop
