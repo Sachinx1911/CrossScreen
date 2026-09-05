@@ -1,0 +1,22 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist-types",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": false,
+    "emitDeclarationOnly": true
+  },
+  "include": ["src/**/*.ts"],
+  "references": [
+    {
+      "path": "../../packages/protocol"
+    },
+    {
+      "path": "../../packages/webrtc-core"
+    }
+  ]
+}

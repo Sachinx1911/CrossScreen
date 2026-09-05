@@ -1,0 +1,21 @@
+{
+  "name": "@crossscreen/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "CrossScreen web viewer",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -b --noEmit false --emitDeclarationOnly"
+  },
+  "dependencies": {
+    "@crossscreen/protocol": "workspace:*",
+    "@crossscreen/webrtc-core": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vite": "^6.0.7"
+  }
+}

@@ -327,20 +327,20 @@ crossscreen/
 
 ## 12. Decisions requiring your approval before coding
 
-| #   | Decision                                                                                                      | Recommendation                                                               |
-| --- | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| D1  | **iOS sharing deferred to Phase 8; iOS is viewer-only in v1**                                                 | Approve — the 50 MB extension ceiling makes it disproportionately expensive  |
-| D2  | **Electron for desktop** (accepting ~150 MB bundle)                                                           | Approve — buys correct capture on Win/macOS/Linux for free                   |
-| D3  | **Android sharer is native Kotlin**, not Flutter/RN                                                           | Approve                                                                      |
-| D4  | **Cloudflare TURN for MVP**, coturn only past ~5M min/mo                                                      | Approve — behind an `/api/v1/ice-servers` abstraction so switching is config |
-| D5  | **No Redis in MVP** (interface-gated, added in Phase 3+)                                                      | Approve                                                                      |
-| D6  | **Host approval mandatory** in MVP (fixes the 6-digit-code weakness)                                          | Approve                                                                      |
-| D7  | **No accounts in MVP** — fully anonymous sessions                                                             | Approve                                                                      |
-| D8  | **Node + Fastify + plain `ws`**, not NestJS/Socket.IO                                                         | Approve                                                                      |
-| D9  | **Phases 1/3/4 merged** — all desktop OSes ship together                                                      | Approve                                                                      |
-| D10 | **Domain**: `crossscreen.app` availability unverified — needs checking, and the name is not trademark-cleared | Your call                                                                    |
+| #   | Decision                                                             | Recommendation                                                                                                                                                                                     |
+| --- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1  | **iOS sharing deferred to Phase 8; iOS is viewer-only in v1**        | Approve — the 50 MB extension ceiling makes it disproportionately expensive                                                                                                                        |
+| D2  | **Electron for desktop** (accepting ~150 MB bundle)                  | Approve — buys correct capture on Win/macOS/Linux for free                                                                                                                                         |
+| D3  | **Android sharer is native Kotlin**, not Flutter/RN                  | Approve                                                                                                                                                                                            |
+| D4  | **Cloudflare TURN for MVP**, coturn only past ~5M min/mo             | Approve — behind an `/api/v1/ice-servers` abstraction so switching is config                                                                                                                       |
+| D5  | **No Redis in MVP** (interface-gated, added in Phase 3+)             | Approve                                                                                                                                                                                            |
+| D6  | **Host approval mandatory** in MVP (fixes the 6-digit-code weakness) | Approve                                                                                                                                                                                            |
+| D7  | **No accounts in MVP** — fully anonymous sessions                    | Approve                                                                                                                                                                                            |
+| D8  | **Node + Fastify + plain `ws`**, not NestJS/Socket.IO                | Approve                                                                                                                                                                                            |
+| D9  | **Phases 1/3/4 merged** — all desktop OSes ship together             | Approve                                                                                                                                                                                            |
+| D10 | **Domain**: `crossscreen.app` availability and trademark unverified  | **Deferred by you (2026-09-05)** — not needed until Phase 3a. Phases 0.5-2 run on a cloudflared tunnel URL. Nothing may be code-signed, printed or published under the name until this is resolved |
 
-**Confirmed by you (2026-09-05):** D1 approved (iOS viewer-only in v1) · D2 approved (Electron) · team = solo, part-time → §11 timeline and scope adjusted accordingly.
+**Confirmed by you (2026-09-05):** D1 approved (iOS viewer-only in v1) · D2 approved (Electron) · D10 deferred (no domain yet) · team = solo, part-time → §11 timeline and scope adjusted accordingly.
 
 ---
 

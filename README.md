@@ -62,6 +62,7 @@ the same JSON Schema so clients cannot drift apart.
 | [`docs/roadmap.md`](docs/roadmap.md)                 | Phases and scope at a glance                                  |
 | [`docs/phases/`](docs/phases/)                       | A detailed plan per phase: scope, tasks, exit criteria, risks |
 | [`docs/ui-scope.md`](docs/ui-scope.md)               | The design mockup reconciled against the architecture         |
+| [`docs/dev-setup.md`](docs/dev-setup.md)             | Running it locally, and the Phase 0.5 cross-network test      |
 | [`docs/adr/`](docs/adr/)                             | Architecture Decision Records                                 |
 
 ## Development

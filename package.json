@@ -19,7 +19,11 @@
     "typecheck": "turbo run typecheck",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "schema": "turbo run schema"
+    "schema": "turbo run schema",
+    "dev:signaling": "pnpm --filter @crossscreen/signaling dev",
+    "dev:web": "pnpm --filter @crossscreen/web dev",
+    "dev:desktop": "pnpm --filter @crossscreen/desktop dev",
+    "verify:capture": "pnpm --filter @crossscreen/desktop run verify:capture"
   },
   "devDependencies": {
     "prettier": "^3.4.2",
