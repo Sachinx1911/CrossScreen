@@ -243,6 +243,36 @@ test('a peer leaving notifies the one that remains', async () => {
   await settle();
 });
 
+test('a sharer that restarts is the host again, not a second viewer', async () => {
+  const host = await Client.open();
+  await host.next('session.state');
+
+  const viewer = await Client.open();
+  await viewer.next('session.state');
+  await host.next('peer.joined');
+
+  // The sharer restarts — which exit criterion 4 asks for by name, since the
+  // forced-relay run means relaunching it with VITE_FORCE_RELAY=1 while the
+  // viewer stays open. The viewer is now the only peer in the room.
+  host.close();
+  await viewer.next('peer.left');
+  await settle();
+
+  const restarted = await Client.open();
+  const state = await restarted.next('session.state');
+  if (state.payload.type !== 'session.state') assert.fail('no state');
+
+  const me = state.payload.session.participants.find((p) => p.participantId === state.payload.you);
+  assert.equal(me?.role, 'host', 'the returning sharer should hold the vacant host slot');
+
+  const roles = state.payload.session.participants.map((p) => p.role).sort();
+  assert.deepEqual(roles, ['host', 'viewer'], 'the room should not end up with two viewers');
+
+  restarted.close();
+  viewer.close();
+  await settle();
+});
+
 after(() => {
   // The server holds the event loop open; nothing else needs tearing down.
   setTimeout(() => process.exit(0), 200);

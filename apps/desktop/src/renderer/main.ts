@@ -119,6 +119,18 @@ async function startSharing(): Promise<void> {
 
 async function offerTo(remoteId: string): Promise<void> {
   if (stream === undefined || signaling === undefined) return;
+
+  // A viewer that reloads leaves and rejoins under a new peer id, so this runs
+  // again for the same screen. The previous connection has nobody on the other
+  // end, but it is not inert: it holds its ICE state open — a relay allocation
+  // once TURN is configured — and its statechange handler still writes 'failed'
+  // over the status of the connection that replaced it.
+  if (pc !== undefined) {
+    pc.onconnectionstatechange = null;
+    pc.onicecandidate = null;
+    pc.close();
+  }
+
   viewerId = remoteId;
   setStatus('Negotiating…');
 

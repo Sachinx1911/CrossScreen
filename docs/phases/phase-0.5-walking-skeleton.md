@@ -53,6 +53,28 @@ NAT traversal, which is the entire point of the exercise.
 
 ### Bugs this phase has already caught
 
+- **A restarted sharer made a working viewer report failure.** Replacing the
+  viewer's `RTCPeerConnection` on a second offer never closed the first one,
+  and a discarded connection is not inert: its `onconnectionstatechange` fires
+  `failed` and writes that into the same status element the new connection is
+  using. Its stats interval survived too, because `pollStats()` had no guard
+  against being called twice — the sharer's equivalent has one, so this was an
+  oversight on one side rather than a decision. Measured on the Mac: one offer
+  gave 0.94 stats timers, a second gave 1.93, and the viewer read **"Connection
+  failed"** while the video was playing at 2940x1912 and its own stats line
+  said `transport=direct`. Both criteria 1 and 3 are read off exactly those two
+  things, so the bug could fail a passing run — and criterion 4 is what
+  triggers it, since forcing relay means restarting the sharer with the viewer
+  still open. Both ends now close the connection they are replacing, handlers
+  detached first so the close itself delivers nothing.
+- **A sharer that restarted came back as a second viewer.** The room chose a
+  role from `#peers.size`, which agrees with "first peer is the host" only
+  until someone reconnects: with the viewer holding the only slot, the
+  returning sharer was labelled `viewer` and the room reported no host at all.
+  Cosmetic today, because nothing in the skeleton reads the role — but the logs
+  are what the gate is judged from, and a log that calls the sharer a viewer
+  costs time at exactly the wrong moment. Role now follows from whether a host
+  is present.
 - **ICE candidates arriving before the answer were thrown away.** Signaling
   carries candidates and the offer/answer over the same channel, and a peer
   starts producing candidates as soon as it has a local description — so they
