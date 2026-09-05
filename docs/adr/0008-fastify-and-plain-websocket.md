@@ -3,6 +3,7 @@
 **Status:** Accepted · 2026-09-05
 
 ## Context
+
 The backend does two things: a small HTTP API (sessions, tokens, ICE
 credentials, rate limits) and a WebSocket signaling channel. Node + TypeScript
 was chosen so that one `packages/protocol` is literally shared with the web
@@ -17,10 +18,12 @@ readable. Its useful features amount to roughly 200 lines we can own.
 cost of weight and indirection for a solo developer.
 
 ## Decision
+
 **Fastify** for the HTTP API, **`ws`** with a custom JSON protocol over WSS for
 signaling. Envelope: `{ v: 1, type, id, ts, payload }`.
 
 ## Consequences
+
 - **Positive:** a plain WebSocket is trivially implementable on every platform,
   including Kotlin and Swift, from the same JSON Schema.
 - **Positive:** the wire format is human-readable, which matters when debugging

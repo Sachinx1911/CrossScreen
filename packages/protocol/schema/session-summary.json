@@ -1,0 +1,84 @@
+{
+  "$id": "https://crossscreen.app/schema/session-summary.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "joinCode": {
+      "type": "string",
+      "pattern": "^\\d{6}$"
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "waiting",
+        "active",
+        "ended",
+        "expired"
+      ]
+    },
+    "createdAt": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "expiresAt": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "participants": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "participantId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "host",
+              "viewer"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "approved",
+              "rejected",
+              "connected",
+              "disconnected"
+            ]
+          },
+          "deviceLabel": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "joinedAt": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "participantId",
+          "role",
+          "state",
+          "deviceLabel"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "joinCode",
+    "state",
+    "createdAt",
+    "expiresAt",
+    "participants"
+  ],
+  "additionalProperties": false
+}

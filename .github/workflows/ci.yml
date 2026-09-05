@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      # The generated JSON Schema is the contract the Kotlin and Swift clients
+      # are built from. If it is stale in the repo, those clients are being
+      # generated from something that no longer matches the TypeScript.
+      - name: Verify generated schema is current
+        run: |
+          pnpm schema
+          if ! git diff --exit-code -- packages/protocol/schema; then
+            echo "::error::packages/protocol/schema is out of date. Run 'pnpm schema' and commit the result."
+            exit 1
+          fi

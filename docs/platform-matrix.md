@@ -17,27 +17,27 @@ it can share".
 
 ## 1. Sharer capability
 
-| Platform | Capture API actually used | Via | Status | Hard limits |
-|---|---|---|---|---|
-| Windows 10 1903+ / 11 | **Windows Graphics Capture** | Chromium, inside Electron | ✅ Phase 1 | None material |
-| macOS 13+ | **ScreenCaptureKit** | Chromium, inside Electron | ✅ Phase 1 (validated Phase 3b) | Screen Recording permission; user must restart the app after granting it the first time |
-| macOS 12 and older | Legacy `CGDisplayStream` | Chromium | ⚠️ Best-effort | Apple deprecated it; do not build features on it |
-| Linux — GNOME / KDE on Wayland | **PipeWire + `xdg-desktop-portal`** | Chromium, inside Electron | ✅ Phase 1 (validated Phase 3b) | Portal picker is drawn by the compositor, not by us — we cannot style or pre-select it |
-| Linux — X11 session | X11 capture | Chromium | ✅ Phase 1 | — |
-| Linux — wlroots (Sway, Hyprland) | PipeWire portal, if one is installed | Chromium | ⚠️ Best-effort, **not a support commitment** | Portal backend varies by install; may be absent entirely |
-| Desktop browser: Chrome, Edge, Firefox, Safari 17+ | `getDisplayMedia()` | The browser | ✅ Phase 1 — **no install path** | Safari's picker is more limited; no system audio in Firefox |
-| **Android 10+** | **`MediaProjection`** | **Native app only** | Phase 4 | See §3 — several OS-enforced behaviours users will notice |
-| **iOS / iPadOS** | **ReplayKit Broadcast Upload Extension** | Native app + extension | **Deferred to Phase 8** | ~50 MB hard memory ceiling on the extension process; see §4 |
-| **Any mobile browser** | — | — | ❌ **Impossible** | `getDisplayMedia()` does not exist on iOS Safari and is not available on Android Chrome |
+| Platform                                           | Capture API actually used                | Via                       | Status                                       | Hard limits                                                                             |
+| -------------------------------------------------- | ---------------------------------------- | ------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Windows 10 1903+ / 11                              | **Windows Graphics Capture**             | Chromium, inside Electron | ✅ Phase 1                                   | None material                                                                           |
+| macOS 13+                                          | **ScreenCaptureKit**                     | Chromium, inside Electron | ✅ Phase 1 (validated Phase 3b)              | Screen Recording permission; user must restart the app after granting it the first time |
+| macOS 12 and older                                 | Legacy `CGDisplayStream`                 | Chromium                  | ⚠️ Best-effort                               | Apple deprecated it; do not build features on it                                        |
+| Linux — GNOME / KDE on Wayland                     | **PipeWire + `xdg-desktop-portal`**      | Chromium, inside Electron | ✅ Phase 1 (validated Phase 3b)              | Portal picker is drawn by the compositor, not by us — we cannot style or pre-select it  |
+| Linux — X11 session                                | X11 capture                              | Chromium                  | ✅ Phase 1                                   | —                                                                                       |
+| Linux — wlroots (Sway, Hyprland)                   | PipeWire portal, if one is installed     | Chromium                  | ⚠️ Best-effort, **not a support commitment** | Portal backend varies by install; may be absent entirely                                |
+| Desktop browser: Chrome, Edge, Firefox, Safari 17+ | `getDisplayMedia()`                      | The browser               | ✅ Phase 1 — **no install path**             | Safari's picker is more limited; no system audio in Firefox                             |
+| **Android 10+**                                    | **`MediaProjection`**                    | **Native app only**       | Phase 4                                      | See §3 — several OS-enforced behaviours users will notice                               |
+| **iOS / iPadOS**                                   | **ReplayKit Broadcast Upload Extension** | Native app + extension    | **Deferred to Phase 8**                      | ~50 MB hard memory ceiling on the extension process; see §4                             |
+| **Any mobile browser**                             | —                                        | —                         | ❌ **Impossible**                            | `getDisplayMedia()` does not exist on iOS Safari and is not available on Android Chrome |
 
 ## 2. Viewer capability
 
-| Platform | Status | Notes |
-|---|---|---|
-| Any desktop browser (Chrome, Edge, Firefox, Safari) | ✅ Phase 1 | The primary viewer target |
-| Android Chrome / Samsung Internet | ✅ Phase 1 | Plain web page; no app needed |
-| iOS / iPadOS Safari | ✅ Phase 1 | Plain web page; H.264 required in the codec list |
-| Desktop app | ✅ Phase 1 | Renders the same web viewer |
+| Platform                                            | Status     | Notes                                            |
+| --------------------------------------------------- | ---------- | ------------------------------------------------ |
+| Any desktop browser (Chrome, Edge, Firefox, Safari) | ✅ Phase 1 | The primary viewer target                        |
+| Android Chrome / Samsung Internet                   | ✅ Phase 1 | Plain web page; no app needed                    |
+| iOS / iPadOS Safari                                 | ✅ Phase 1 | Plain web page; H.264 required in the codec list |
+| Desktop app                                         | ✅ Phase 1 | Renders the same web viewer                      |
 
 Viewing is a solved problem. **All the engineering risk is on the sharer side.**
 
@@ -48,7 +48,7 @@ Viewing is a solved problem. **All the engineering risk is on the sharer side.**
 These are enforced by the platform. They are product constraints to be
 designed around and explained to the user, not bugs to be fixed.
 
-1. **Foreground service must start *before* `MediaProjection`.** Android 14+
+1. **Foreground service must start _before_ `MediaProjection`.** Android 14+
    throws `SecurityException` if the order is reversed. The service must
    declare `FOREGROUND_SERVICE_MEDIA_PROJECTION`.
 2. **Consent is required for every single session.** The projection token
@@ -72,7 +72,7 @@ Consequences that make this a sub-project rather than a feature:
 
 - The extension **cannot reach the main app's `RTCPeerConnection`**. Frames
   must either cross a process boundary (App Group + IOSurface + Darwin
-  notifications) or a second, miniature WebRTC client must run *inside* the
+  notifications) or a second, miniature WebRTC client must run _inside_ the
   50 MB extension.
 - Everything must be tuned to that ceiling: 720p maximum, hardware H.264
   only, 15–30 fps. **VP8 and VP9 are not viable inside the extension.**
@@ -85,31 +85,32 @@ Consequences that make this a sub-project rather than a feature:
 
 ## 5. System audio — availability is not uniform
 
-| Platform | System audio | Notes |
-|---|---|---|
-| Windows | ✅ Available | Via Chromium's loopback capture |
-| macOS 13+ | ⚠️ ScreenCaptureKit only | Not available on older macOS without a virtual audio driver |
-| Linux | ⚠️ PipeWire-dependent | Varies by compositor and portal backend |
-| Android 10+ | ⚠️ Partial | Apps may opt out of capture |
-| iOS | ❌ Never | App audio only, and only within the broadcast |
-| Firefox (desktop) | ❌ | Not implemented |
+| Platform          | System audio             | Notes                                                       |
+| ----------------- | ------------------------ | ----------------------------------------------------------- |
+| Windows           | ✅ Available             | Via Chromium's loopback capture                             |
+| macOS 13+         | ⚠️ ScreenCaptureKit only | Not available on older macOS without a virtual audio driver |
+| Linux             | ⚠️ PipeWire-dependent    | Varies by compositor and portal backend                     |
+| Android 10+       | ⚠️ Partial               | Apps may opt out of capture                                 |
+| iOS               | ❌ Never                 | App audio only, and only within the broadcast               |
+| Firefox (desktop) | ❌                       | Not implemented                                             |
 
 **Not in MVP.** Scheduled for Phase 6, Windows first.
 
 ## 6. Codec support
 
-| Codec | Desktop Chrome/Edge | Firefox | Safari | Android | iOS | Verdict |
-|---|---|---|---|---|---|---|
-| **H.264** | ✅ | ✅ | ✅ | ✅ hardware | ✅ hardware | **Mandatory fallback** — the only universal codec |
-| **VP9** | ✅ | ✅ | ✅ 17+ | ✅ mostly | ⚠️ software | **Preferred default** — screen-content coding tools, good text |
-| **VP8** | ✅ | ✅ | ✅ | ✅ | ⚠️ | Last resort |
-| **AV1** | ✅ | ✅ | ⚠️ | ⚠️ hardware decode still rare through 2026 | ⚠️ | Best text compression, ~3–5× VP9 encode cost. **Opt-in, Phase 6** |
+| Codec     | Desktop Chrome/Edge | Firefox | Safari | Android                                    | iOS         | Verdict                                                           |
+| --------- | ------------------- | ------- | ------ | ------------------------------------------ | ----------- | ----------------------------------------------------------------- |
+| **H.264** | ✅                  | ✅      | ✅     | ✅ hardware                                | ✅ hardware | **Mandatory fallback** — the only universal codec                 |
+| **VP9**   | ✅                  | ✅      | ✅ 17+ | ✅ mostly                                  | ⚠️ software | **Preferred default** — screen-content coding tools, good text    |
+| **VP8**   | ✅                  | ✅      | ✅     | ✅                                         | ⚠️          | Last resort                                                       |
+| **AV1**   | ✅                  | ✅      | ⚠️     | ⚠️ hardware decode still rare through 2026 | ⚠️          | Best text compression, ~3–5× VP9 encode cost. **Opt-in, Phase 6** |
 
 Negotiated order: **VP9 → H.264 → VP8.**
 
 ---
 
 ### Sources
+
 - [Screen capture browser support (getDisplayMedia)](https://cobaltcapture.com/reference/screen-capture-browser-support) · [caniuse: getDisplayMedia](https://caniuse.com/mdn-api_mediadevices_getdisplaymedia)
 - [Android: Media projection](https://developer.android.com/media/grow/media-projection) · [Behavior changes: Android 14+](https://developer.android.com/about/versions/14/behavior-changes-14)
 - [iOS Screen Sharing: ReplayKit + Broadcast Extension 2026](https://www.forasoft.com/blog/article/how-to-implement-screen-sharing-in-ios-1193) · [Apple Developer Forums — broadcast extension memory](https://developer.apple.com/forums/thread/131210)

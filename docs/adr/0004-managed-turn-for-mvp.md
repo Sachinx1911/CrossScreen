@@ -3,6 +3,7 @@
 **Status:** Accepted · 2026-09-05
 
 ## Context
+
 TURN is required whenever P2P fails, and TURN bandwidth is typically the
 largest variable cost in a screen-sharing product. Options: self-host coturn
 from day one, or use a managed anycast service.
@@ -15,10 +16,12 @@ the first 1 TB/month, then $0.05/GB. Published break-even against self-hosted
 coturn is around ~5M minutes/month — far beyond anything the MVP will see.
 
 ## Decision
+
 **Cloudflare Realtime TURN for MVP.** Revisit coturn only if sustained usage
 approaches the break-even point.
 
 ## Consequences
+
 - **Positive:** removes the hardest piece of infrastructure from the critical
   path, at effectively zero cost and zero operations.
 - **Positive:** TLS/443 is the default transport, so corporate firewalls are

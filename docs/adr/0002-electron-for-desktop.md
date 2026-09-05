@@ -3,11 +3,13 @@
 **Status:** Accepted · 2026-09-05
 
 ## Context
+
 The desktop shell choice determines how screen capture works on Windows,
 macOS and Linux, and which WebRTC stack we inherit. It is effectively
 irreversible. Candidates: Electron, Tauri, Flutter Desktop, native Rust/C++.
 
 Findings:
+
 - **Tauri** uses the system WebView. On macOS that is WKWebView, which
   **does not support `getDisplayMedia`** — precisely the API the product
   exists for. It would require a bespoke Rust capture implementation for
@@ -22,15 +24,17 @@ Findings:
   maintained by Google, for free — plus a battle-tested libwebrtc.
 
 ## Decision
+
 **Electron**, accepting a ~100–150 MB bundle.
 
 ## Consequences
+
 - **Positive:** three capture backends and a mature WebRTC stack at zero cost.
 - **Positive:** Phases 1/3/4 of the original plan collapse into one (ADR-0009).
 - **Positive:** ~90% code reuse with the web viewer; one language across web,
   desktop and backend.
 - **Negative:** bundle size and memory. Accepted — bundle size is a download
-  page metric; capture correctness *is* the product. Discord, Slack and
+  page metric; capture correctness _is_ the product. Discord, Slack and
   VS Code Live Share make the same trade for the same reason.
 - **Disclosed MVP shortcut:** if Electron ever proves untenable, the escape
   hatch is a Rust core behind the same `ScreenCaptureManager` interface, which

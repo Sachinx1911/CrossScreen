@@ -3,17 +3,20 @@
 **Status:** Accepted · 2026-09-05
 
 ## Context
+
 The core use case — "show my friend what I'm doing" — needs no identity.
 Registration is friction placed directly in front of the product's value, and
 account systems bring password handling, email delivery, recovery flows and
 data-protection obligations.
 
 ## Decision
+
 **Fully anonymous sessions in MVP.** No sign-up, no sign-in, no password.
 Security comes from short-lived sessions, high-entropy tokens, mandatory host
 approval (ADR-0006) and rate limiting — not from identity.
 
 ## Consequences
+
 - **Positive:** the shortest possible path from landing page to a working
   screen share; supports the "No Account Required" promise in the design.
 - **Positive:** no credential store, so no credential breach.

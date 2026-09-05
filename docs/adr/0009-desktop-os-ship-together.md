@@ -3,6 +3,7 @@
 **Status:** Accepted · 2026-09-05
 
 ## Context
+
 The original plan had Windows, macOS and Linux as three separate phases
 (1, 3 and 4). That sequencing assumes each OS needs its own capture
 implementation. Given ADR-0002, it does not: Chromium already implements
@@ -10,16 +11,18 @@ Windows Graphics Capture, ScreenCaptureKit and the PipeWire portal path, and
 selects the right one per platform.
 
 ## Decision
+
 **One Electron codebase covers all three desktop OSes, shipped together in
 Phase 1.** The three original phases are merged.
 
-Because the developer is solo and part-time with Windows hardware, a *testing*
+Because the developer is solo and part-time with Windows hardware, a _testing_
 distinction remains: **Phase 1 validates Windows only.** macOS and Linux are
-built and shipped in the codebase but marked *untested* until Phase 3b, when
+built and shipped in the codebase but marked _untested_ until Phase 3b, when
 hardware or VMs are available. This is a testing-scope reduction, not an
 architecture change.
 
 ## Consequences
+
 - **Positive:** removes roughly two phases of duplicated work.
 - **Positive:** platform differences surface as `capabilities()` flags in the
   `ScreenCaptureManager` abstraction rather than as forked code paths.
