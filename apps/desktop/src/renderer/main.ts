@@ -1,4 +1,5 @@
 import {
+  IceCandidateQueue,
   SignalingClient,
   formatSnapshot,
   readConnectionSnapshot,
@@ -35,6 +36,9 @@ let signaling: SignalingClient | undefined;
 let pc: RTCPeerConnection | undefined;
 let stream: MediaStream | undefined;
 let statsTimer: number | undefined;
+// Created up front, not with the peer connection: candidates can arrive
+// before there is anything to attach them to.
+const iceQueue = new IceCandidateQueue();
 let selfId: string | undefined;
 let viewerId: string | undefined;
 
@@ -89,19 +93,16 @@ async function startSharing(): Promise<void> {
   signaling.on('rtc.answer', async (message) => {
     if (pc === undefined) return;
     await pc.setRemoteDescription({ type: 'answer', sdp: message.sdp });
+    // Candidates that arrived while we were waiting for this are now usable.
+    await iceQueue.flush();
   });
 
   signaling.on('rtc.ice', async (message) => {
-    if (pc === undefined) return;
-    try {
-      await pc.addIceCandidate({
-        candidate: message.candidate,
-        sdpMid: message.sdpMid,
-        sdpMLineIndex: message.sdpMLineIndex,
-      });
-    } catch (err) {
-      console.warn('[sharer] rejected ICE candidate', err);
-    }
+    await iceQueue.add({
+      candidate: message.candidate,
+      sdpMid: message.sdpMid,
+      sdpMLineIndex: message.sdpMLineIndex,
+    });
   });
 
   signaling.on('peer.left', () => {
@@ -125,6 +126,8 @@ async function offerTo(remoteId: string): Promise<void> {
     iceServers: iceServers(),
     ...(forceRelay() ? { iceTransportPolicy: 'relay' as const } : {}),
   });
+
+  iceQueue.attach(pc);
 
   pc.onicecandidate = (event) => {
     if (event.candidate === null || viewerId === undefined) return;

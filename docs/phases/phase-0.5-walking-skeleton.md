@@ -29,6 +29,15 @@ NAT traversal, which is the entire point of the exercise.
 
 ### Bugs this phase has already caught
 
+- **ICE candidates arriving before the answer were thrown away.** Signaling
+  carries candidates and the offer/answer over the same channel, and a peer
+  starts producing candidates as soon as it has a local description — so they
+  routinely arrive first. `addIceCandidate` throws in that state, and a
+  discarded candidate is a connection path silently lost. Invisible on
+  loopback; it appeared the moment a tunnel added real latency, which is
+  exactly when the lost candidate is most likely to have been the one that
+  would have worked. Both clients now queue through `IceCandidateQueue`.
+
 - **`Buffer` is not defined in a browser.** `parse.ts` used Node's `Buffer` for
   the size check and for decoding binary frames, so every browser client threw
   inside its WebSocket message handler and silently dropped every frame. The

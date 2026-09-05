@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { app, BrowserWindow, desktopCapturer, session } from 'electron';
@@ -20,6 +21,28 @@ import { RENDERER_ENTRY, registerRendererScheme, serveRendererFrom } from './ren
  */
 
 const here = dirname(fileURLToPath(import.meta.url));
+const repoRoot = join(here, '..', '..', '..', '..');
+
+/**
+ * Where the renderer should reach signaling, resolved at launch rather than
+ * baked in at build time.
+ *
+ * `pnpm tunnel` writes the current tunnel URL to `.tunnel-url` at the
+ * repository root. Reading it here means the cross-network test is "start the
+ * tunnel, start the app" instead of editing a file and rebuilding every time
+ * cloudflared hands out a new hostname.
+ */
+function signalingOverride(): string | undefined {
+  const fromEnv = process.env['CROSSSCREEN_SIGNALING_URL'];
+  if (fromEnv !== undefined && fromEnv !== '') return fromEnv;
+
+  try {
+    const url = readFileSync(join(repoRoot, '.tunnel-url'), 'utf8').trim();
+    return url === '' ? undefined : url;
+  } catch {
+    return undefined;
+  }
+}
 
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
@@ -45,7 +68,17 @@ function createWindow(): BrowserWindow {
     console.log(prefix, event.message);
   });
 
-  void window.loadURL(RENDERER_ENTRY);
+  const signaling = signalingOverride();
+  if (signaling !== undefined) {
+    console.info('[main] signaling override:', signaling);
+  }
+
+  const entry =
+    signaling === undefined
+      ? RENDERER_ENTRY
+      : `${RENDERER_ENTRY}?signaling=${encodeURIComponent(signaling)}`;
+
+  void window.loadURL(entry);
   return window;
 }
 

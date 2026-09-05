@@ -9,7 +9,20 @@
 
 const env = import.meta.env as Record<string, string | undefined>;
 
+/**
+ * Signaling URL, in order of preference:
+ *
+ *   1. the `signaling` query parameter, which the main process sets at launch
+ *   2. the build-time environment
+ *   3. a local server
+ *
+ * The query parameter exists so the cross-network test does not need a
+ * rebuild. A tunnel hostname changes on every restart, and baking it in at
+ * build time made "start the tunnel" a four-step ritual.
+ */
 export function signalingUrl(): string {
+  const fromQuery = new URLSearchParams(location.search).get('signaling');
+  if (fromQuery !== null && fromQuery !== '') return fromQuery;
   return env['VITE_SIGNALING_URL'] ?? 'ws://127.0.0.1:8787';
 }
 

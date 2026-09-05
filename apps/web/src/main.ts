@@ -1,4 +1,9 @@
-import { SignalingClient, formatSnapshot, readConnectionSnapshot } from '@crossscreen/webrtc-core';
+import {
+  IceCandidateQueue,
+  SignalingClient,
+  formatSnapshot,
+  readConnectionSnapshot,
+} from '@crossscreen/webrtc-core';
 
 import { config, forceRelay, iceServers } from './config.ts';
 import { mustFind } from './dom.ts';
@@ -26,6 +31,9 @@ function setStatus(text: string, tone: 'idle' | 'live' | 'bad' = 'idle'): void {
 
 let peerId: string | undefined;
 let pc: RTCPeerConnection | undefined;
+// Created up front, not with the peer connection: candidates can arrive
+// before the offer that creates it.
+const iceQueue = new IceCandidateQueue();
 
 function createPeerConnection(signaling: SignalingClient, remoteId: string): RTCPeerConnection {
   const connection = new RTCPeerConnection({
@@ -85,7 +93,10 @@ async function start(): Promise<void> {
 
   signaling.on('rtc.offer', async (message) => {
     pc = createPeerConnection(signaling, message.from);
+    iceQueue.attach(pc);
     await pc.setRemoteDescription({ type: 'offer', sdp: message.sdp });
+    // Anything that arrived ahead of the offer is usable now.
+    await iceQueue.flush();
 
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
@@ -99,16 +110,13 @@ async function start(): Promise<void> {
   });
 
   signaling.on('rtc.ice', async (message) => {
-    if (pc === undefined) return;
-    try {
-      await pc.addIceCandidate({
-        candidate: message.candidate,
-        sdpMid: message.sdpMid,
-        sdpMLineIndex: message.sdpMLineIndex,
-      });
-    } catch (err) {
-      console.warn('[viewer] rejected ICE candidate', err);
-    }
+    // The offer may not have arrived yet, in which case this is held rather
+    // than thrown away — see IceCandidateQueue.
+    await iceQueue.add({
+      candidate: message.candidate,
+      sdpMid: message.sdpMid,
+      sdpMLineIndex: message.sdpMLineIndex,
+    });
   });
 
   signaling.on('peer.left', () => {

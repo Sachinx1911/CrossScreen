@@ -156,43 +156,29 @@ winget install --id Cloudflare.cloudflared
 macOS: `brew install cloudflared`. Open a **new terminal** afterwards, or the
 old one will not have it on PATH.
 
-### 2. Start one tunnel
+### 2. Start the tunnel
 
-`localhost` is not reachable from another network. Both the viewer page and
-signaling need to be, and **one tunnel covers both** — the Vite dev server
-proxies `/ws` through to the signaling port:
+```bash
+pnpm tunnel
+```
+
+One tunnel covers both the viewer page and signaling, because the Vite dev
+server proxies `/ws` through to the signaling port. The script prints the URL
+to open on the phone, and writes the matching `wss://…/ws` to `.tunnel-url`,
+which the desktop app reads at launch.
+
+So there is **nothing to edit and nothing to rebuild**, even though a quick
+tunnel gets a new hostname on every run. The viewer needs no configuration
+either — it falls back to same-origin `/ws`, which works locally and through
+the tunnel alike.
+
+Leave it running, and in another terminal:
 
 ```bash
 pnpm dev
 ```
 
-```bash
-cloudflared tunnel --url http://127.0.0.1:5173
-```
-
-It prints a public `https://…trycloudflare.com` URL. That single URL is:
-
-|            |                               |
-| ---------- | ----------------------------- |
-| the viewer | `https://…trycloudflare.com/` |
-| signaling  | `wss://…trycloudflare.com/ws` |
-
-### 3. Point the desktop app at it
-
-**The viewer needs no configuration at all** — it falls back to same-origin
-`/ws`, which works locally and through the tunnel alike. Only the desktop app
-does, because it is not served by Vite. In `apps/desktop/.env.local`:
-
-```
-VITE_SIGNALING_URL=wss://your-tunnel.trycloudflare.com/ws
-```
-
-Then restart `pnpm dev`, because that value is baked in at build time.
-
-The hostname changes on every `cloudflared` restart, which is why it is
-configuration and why `.env.local` is not committed.
-
-### 4. Run the test
+### 3. Run the test
 
 1. Press **Start Sharing** in the desktop window.
 2. On your phone, **turn Wi-Fi off so it is on mobile data**, and open the
@@ -202,7 +188,7 @@ configuration and why `.env.local` is not committed.
 Mobile data is the point. Two devices on the same Wi-Fi tell you nothing about
 NAT traversal, which is the entire reason this gate exists.
 
-### 5. Prove the relay path separately
+### 4. Prove the relay path separately
 
 P2P succeeding is not proof that TURN works, and a TURN path that has never
 been exercised is a TURN path that does not work. Force it:
@@ -213,7 +199,7 @@ been exercised is a TURN path that does not work. Force it:
 This needs real TURN credentials in `.env.local` — see `.env.example`.
 Cloudflare Realtime TURN is free for the first 1 TB per month (ADR-0004).
 
-### 6. Record the result
+### 5. Record the result
 
 The five exit criteria are in
 [`phases/phase-0.5-walking-skeleton.md`](phases/phase-0.5-walking-skeleton.md).

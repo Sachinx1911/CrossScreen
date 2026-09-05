@@ -66,3 +66,6 @@ DerivedData/
 # Local scratch
 tmp/
 scratch/
+
+# Written by `pnpm tunnel`; the hostname changes every run.
+.tunnel-url

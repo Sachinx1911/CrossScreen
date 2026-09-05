@@ -13,6 +13,7 @@
   },
   "scripts": {
     "setup": "node scripts/setup.mjs",
+    "tunnel": "node scripts/tunnel.mjs",
     "build": "turbo run build",
     "dev": "turbo run dev",
     "test": "turbo run test",
