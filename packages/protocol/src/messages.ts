@@ -19,10 +19,21 @@ import {
  * vendor library, and because a human-readable wire format is worth a great
  * deal when debugging signaling across five platforms.
  *
- * Envelope: { v, type, id, ts, payload }
+ * Envelope: { v, id, ts, payload }
  *   v    protocol version; a mismatch is refused, never guessed at
- *   id   client-generated, echoed on the reply so requests can be correlated
+ *   id   sender-generated, echoed on a direct reply so the two can be paired
  *   ts   sender's clock, for latency measurement only — never for logic
+ *
+ * The message `type` lives in the payload, not beside it. This description
+ * said otherwise for a while, which matters more here than in most comments:
+ * the Kotlin and Swift clients are generated from `schema/`, so they were
+ * never at risk, but a person implementing against the prose would have added
+ * a field the server does not send and does not accept.
+ *
+ * A reply carries the request's `id` as its own envelope id. Errors are the
+ * exception — an error can arrive with no request behind it, so the pairing
+ * moves into the payload as `inReplyTo` and is simply absent when there is
+ * nothing to point at.
  */
 
 // --------------------------------------------------------------------------

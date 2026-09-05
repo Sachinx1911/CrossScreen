@@ -15,6 +15,30 @@ test('a well-formed client envelope round-trips', () => {
   }
 });
 
+test('the envelope carries exactly v, id, ts and payload', () => {
+  // The message type lives in the payload, not beside it. Pinned because the
+  // file's own description of the envelope claimed a `type` field here that
+  // the server neither sends nor accepts, and prose is what someone writing a
+  // client by hand reads first.
+  const built = envelope({ type: 'ping' });
+  assert.deepEqual(Object.keys(built).sort(), ['id', 'payload', 'ts', 'v']);
+  assert.equal('type' in built, false);
+});
+
+test('a reply reuses the id it is answering, and an error points with inReplyTo', () => {
+  const asked = envelope({ type: 'ping' });
+  const answered = envelope({ type: 'pong' }, asked.id);
+  assert.equal(answered.id, asked.id, 'a direct reply pairs by envelope id');
+
+  const failed = errorMessage('MALFORMED_MESSAGE', asked.id);
+  assert.equal(failed.type === 'error' && failed.inReplyTo, asked.id);
+
+  // An error can arrive with nothing behind it, so the field is absent rather
+  // than empty when there is nothing to point at.
+  const unprompted = errorMessage('INTERNAL_ERROR');
+  assert.equal('inReplyTo' in unprompted, false);
+});
+
 test('a version mismatch is reported as an out-of-date client, not a parse error', () => {
   const frame = JSON.stringify({
     v: 99,
