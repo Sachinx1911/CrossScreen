@@ -67,6 +67,30 @@ transport=direct path=host->host rtt=1ms res=1920x1080 fps=30 codec=VP9
 of the cross-network test is to see what it says when the two machines are not
 on the same network.
 
+## Freeing a stuck port
+
+The signaling server refuses to start if something already holds its port, and
+reports it rather than crashing:
+
+```
+{"level":"error","event":"signaling.port_in_use","port":8787,...}
+```
+
+A stray `node --watch` left over from an earlier session is the usual cause.
+On Windows:
+
+```powershell
+Get-NetTCPConnection -LocalPort 8787 -State Listen | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
+```
+
+Or sidestep it entirely:
+
+```bash
+SIGNALING_PORT=8788 pnpm dev:signaling
+```
+
+remembering to point `VITE_SIGNALING_URL` at the same port.
+
 ## The Phase 0.5 cross-network test
 
 This is the **GO/NO-GO gate**. Local success proves nothing about NAT traversal.
