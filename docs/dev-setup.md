@@ -41,23 +41,24 @@ Verified so far:
 
 ## Running the walking skeleton locally
 
-Three terminals:
+One command starts all three:
 
 ```bash
-pnpm --filter @crossscreen/signaling dev
+pnpm dev
 ```
 
-```bash
-pnpm --filter @crossscreen/web dev
-```
+It builds the shared packages first, then runs the signaling server, the Vite
+dev server and the Electron app together, with their output interleaved and
+prefixed. Ctrl+C stops all of them.
 
-```bash
-pnpm --filter @crossscreen/desktop dev
-```
+Then open the viewer URL that Vite prints and press **Start Sharing** in the
+desktop window. The screen should appear in the browser.
 
-Open the web viewer, press **Start Sharing** in the desktop window, and the
-screen should appear in the browser. Both ends print a stats line every two
-seconds:
+> **Each of these is a long-running process.** Started individually
+> (`pnpm dev:signaling`, `pnpm dev:web`, `pnpm dev:desktop`) they each need
+> their own terminal — typing the next command into a terminal already running
+> Vite sends it to Vite's input rather than the shell, and nothing happens. Both ends print a stats line every two
+> seconds:
 
 ```
 transport=direct path=host->host rtt=1ms res=1920x1080 fps=30 codec=VP9

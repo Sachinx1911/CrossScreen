@@ -20,7 +20,7 @@ function setStatus(text: string, tone: 'idle' | 'live' | 'bad' = 'idle'): void {
   statusEl.textContent = text;
   dot.className = `dot${tone === 'idle' ? '' : ` ${tone}`}`;
   // Logged as well as shown: a scripted run has no eyes on the window.
-  console.info('[%s] %s', 'viewer', text);
+  console.info(`[viewer] ${text}`);
 }
 
 let peerId: string | undefined;
