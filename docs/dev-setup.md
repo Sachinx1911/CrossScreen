@@ -223,6 +223,18 @@ tunnel gets a new hostname on every run. The viewer needs no configuration
 either — it falls back to same-origin `/ws`, which works locally and through
 the tunnel alike.
 
+Both claims are verified on macOS, 2026-09-06, with cloudflared 2026.8.3: the
+desktop app logged `[main] signaling override: wss://…/ws` read straight from
+`.tunnel-url`, the viewer loaded over the public HTTPS hostname and reached
+signaling through its own origin with nothing configured, and the media path
+came up at `res=2940x1912 codec=VP9`. Restarting the sharer with the viewer
+left open reconnected cleanly.
+
+That is the whole rig except the two things it cannot stand in for: a second
+network, and TURN. Both ends were on one machine, so `transport` says `direct`
+and the media never went near the tunnel — which is the point, and why this
+run is preparation for the gate rather than part of it.
+
 Leave it running, and in another terminal:
 
 ```bash

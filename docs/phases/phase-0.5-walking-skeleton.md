@@ -67,6 +67,15 @@ NAT traversal, which is the entire point of the exercise.
   triggers it, since forcing relay means restarting the sharer with the viewer
   still open. Both ends now close the connection they are replacing, handlers
   detached first so the close itself delivers nothing.
+- **A stopped tunnel left its URL behind.** `pnpm tunnel` deleted
+  `.tunnel-url` on SIGINT and on the child exiting, which covers Ctrl+C and
+  cloudflared dying, and nothing else. Killed with SIGTERM — an IDE stop
+  button, `kill`, a closing terminal, a process manager taking the tree down —
+  it died before cleanup and left the file pointing at a tunnel that no longer
+  existed. The next `pnpm dev` reads that file at launch, so the desktop app
+  aims at a dead hostname and cannot reach signaling, which is precisely the
+  outcome the code comment there warns about. Found by killing it that way
+  while tidying up after a tunnel run. Now handles SIGTERM and SIGHUP too.
 - **A sharer that restarted came back as a second viewer.** The room chose a
   role from `#peers.size`, which agrees with "first peer is the host" only
   until someone reconnects: with the viewer holding the only slot, the
