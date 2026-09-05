@@ -1,0 +1,67 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+out/
+release/
+*.tsbuildinfo
+.turbo/
+.vite/
+
+# Env & secrets — NEVER commit
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.mobileprovision
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+logs/
+
+# Editors / OS
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.recommended.json
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Test / coverage
+coverage/
+playwright-report/
+test-results/
+.nyc_output/
+
+# Electron
+apps/desktop/release/
+apps/desktop/dist-electron/
+
+# Android (Gradle) — outside the pnpm graph
+apps/android/.gradle/
+apps/android/build/
+apps/android/local.properties
+apps/android/app/build/
+apps/android/.idea/
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# iOS / Xcode (future)
+apps/ios/build/
+apps/ios/Pods/
+*.xcuserstate
+DerivedData/
+
+# Local scratch
+tmp/
+scratch/

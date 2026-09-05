@@ -1,0 +1,21 @@
+# Normalise line endings: LF in the repository, native in the working tree.
+* text=auto eol=lf
+
+# Windows-only scripts keep CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary
+*.png binary
+*.jpg binary
+*.ico binary
+*.icns binary
+*.woff binary
+*.woff2 binary
+*.keystore binary
+*.jks binary
+
+# Generated / vendored files excluded from diffs and language stats
+pnpm-lock.yaml -diff linguist-generated
+*.generated.ts linguist-generated
