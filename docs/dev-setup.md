@@ -30,6 +30,42 @@ Two are allowed deliberately: `esbuild` (places the Vite binary) and
 `electron` (downloads the Chromium runtime). Adding a third is a decision, not
 a convenience — each one is an arbitrary command from a third party.
 
+## Starting from a fresh clone
+
+```bash
+git clone https://github.com/Sachinx1911/CrossScreen.git
+cd CrossScreen
+pnpm setup
+```
+
+`pnpm setup` installs, builds, and creates the `.env.local` files. If `pnpm` is
+missing, `npm install -g pnpm` — Node 26 dropped corepack, so it is a direct
+install now.
+
+Then confirm this machine can capture at all:
+
+```bash
+pnpm --filter @crossscreen/desktop run verify:capture
+```
+
+### macOS, first run
+
+The Screen Recording permission is the awkward part, and it catches everyone:
+
+1. The first capture attempt triggers the system prompt. Allow it.
+2. **Quit and restart the app.** macOS does not apply the grant to a process
+   that is already running, so the first run after granting still fails. This
+   is normal, and it is why Phase 3b treats the permission flow as the real
+   work rather than the capture itself.
+3. If no prompt appears, or capture returns black frames, open **System
+   Settings → Privacy & Security → Screen Recording** and enable **Electron**.
+   In development the binary is unpackaged, so it appears under that name
+   rather than CrossScreen. Depending on how it was launched, the terminal app
+   may need enabling too.
+
+Run `verify:capture` again afterwards. It should print the capture size and
+`PASS`.
+
 ## Working across two machines
 
 This project moves between a Windows PC and a Mac over git. Three things are
