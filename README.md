@@ -55,21 +55,31 @@ the same JSON Schema so clients cannot drift apart.
 
 ## Documentation
 
-| Document                                             | Contents                               |
-| ---------------------------------------------------- | -------------------------------------- |
-| [`docs/architecture.md`](docs/architecture.md)       | Full technical architecture v1.0       |
-| [`docs/platform-matrix.md`](docs/platform-matrix.md) | Per-OS capture capabilities and limits |
-| [`docs/roadmap.md`](docs/roadmap.md)                 | Phases and scope                       |
-| [`docs/adr/`](docs/adr/)                             | Architecture Decision Records          |
+| Document                                             | Contents                                                      |
+| ---------------------------------------------------- | ------------------------------------------------------------- |
+| [`docs/architecture.md`](docs/architecture.md)       | Full technical architecture v1.0                              |
+| [`docs/platform-matrix.md`](docs/platform-matrix.md) | Per-OS capture capabilities and limits                        |
+| [`docs/roadmap.md`](docs/roadmap.md)                 | Phases and scope at a glance                                  |
+| [`docs/phases/`](docs/phases/)                       | A detailed plan per phase: scope, tasks, exit criteria, risks |
+| [`docs/ui-scope.md`](docs/ui-scope.md)               | The design mockup reconciled against the architecture         |
+| [`docs/adr/`](docs/adr/)                             | Architecture Decision Records                                 |
 
 ## Development
 
-Requires Node.js 22 LTS and pnpm 9+.
+Requires Node.js 22 or newer and pnpm 11+. Node 26 removed corepack, so
+install pnpm directly:
+
+```bash
+npm install -g pnpm
+```
 
 ```bash
 pnpm install
-pnpm dev
+pnpm test
+pnpm typecheck
 ```
+
+CI runs on Node 24 (LTS).
 
 ## License
 

@@ -1,5 +1,9 @@
 # Roadmap
 
+> This is the summary view. **Each phase has its own detailed plan** —
+> goal, scope, work breakdown, exit criteria, verification and risks — in
+> [`phases/`](phases/). Start at [`phases/README.md`](phases/README.md).
+
 Assumes **one developer, part-time (~10–15 hrs/week)**. Estimates are calendar
 time under that constraint and are deliberately conservative.
 
@@ -12,21 +16,21 @@ Two rules that follow from being solo:
    Linux stay marked _untested_ until Phase 3b. This is a testing-scope
    reduction, **not** an architecture change.
 
-| Phase   | Deliverable                                                                                                                                                                      | Estimate | Status         |
-| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | -------------- |
-| **0**   | Repo, monorepo scaffold, CI, `packages/protocol` v0, docs + ADRs                                                                                                                 | ~1 wk    | 🔨 in progress |
-| **0.5** | **Walking skeleton — GO/NO-GO GATE.** Hardcoded session, zero UI, no DB: Electron on Windows captures a screen → WSS signaling → Chrome on a _different network_ renders it live | 1–2 wk   | —              |
-| **1**   | MVP core: web viewer, session create/join/**approve**, lifecycle, Postgres, real error states, sharer + viewer UI                                                                | 8–10 wk  | —              |
-| **2**   | Reliability: Cloudflare TURN, forced-relay test mode, ICE restart, Wi-Fi↔mobile reconnection, sleep/wake, stats, Sentry                                                          | 4–5 wk   | —              |
-| **3a**  | Production: rate limiting, abuse controls, expiry jobs, Mumbai VPS + TLS, Windows code signing, auto-update                                                                      | 3–4 wk   | —              |
-| **3b**  | macOS + Linux validation, promotion to supported                                                                                                                                 | 2–3 wk   | —              |
-| **4**   | Android sharing (native Kotlin)                                                                                                                                                  | 6–8 wk   | —              |
-| **5**   | Multi-viewer over P2P mesh (2–3 viewers), no SFU                                                                                                                                 | 2–3 wk   | —              |
-| **6**   | AV1 opt-in, adaptive tuning, system audio (Windows first)                                                                                                                        | 3–4 wk   | —              |
-| **7**   | Teaching Mode: pointer, laser, annotation, chat over DataChannel                                                                                                                 | 4–6 wk   | —              |
-| **8**   | iOS sharing (ReplayKit) — its own sub-project                                                                                                                                    | 8–12 wk  | —              |
-| **9**   | SFU via LiveKit + SFrame E2EE                                                                                                                                                    | 6+ wk    | —              |
-| **10**  | Remote control — per-OS, explicit approval, separate design doc                                                                                                                  | —        | —              |
+| Phase                                           | Deliverable                                                                                                                                                                      | Estimate | Status  |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------- |
+| **[0](phases/phase-0.md)**                      | Repo, monorepo scaffold, CI, `packages/protocol` v0, docs + ADRs                                                                                                                 | ~1 wk    | ✅ done |
+| **[0.5](phases/phase-0.5-walking-skeleton.md)** | **Walking skeleton — GO/NO-GO GATE.** Hardcoded session, zero UI, no DB: Electron on Windows captures a screen → WSS signaling → Chrome on a _different network_ renders it live | 1–2 wk   | —       |
+| **[1](phases/phase-1-mvp-core.md)**             | MVP core: web viewer, session create/join/**approve**, lifecycle, Postgres, real error states, sharer + viewer UI                                                                | 8–10 wk  | —       |
+| **[2](phases/phase-2-reliability.md)**          | Reliability: Cloudflare TURN, forced-relay test mode, ICE restart, Wi-Fi↔mobile reconnection, sleep/wake, stats, Sentry                                                          | 4–5 wk   | —       |
+| **[3a](phases/phase-3a-production.md)**         | Production: rate limiting, abuse controls, expiry jobs, Mumbai VPS + TLS, Windows code signing, auto-update                                                                      | 3–4 wk   | —       |
+| **[3b](phases/phase-3b-macos-linux.md)**        | macOS + Linux validation, promotion to supported                                                                                                                                 | 2–3 wk   | —       |
+| **[4](phases/phase-4-android.md)**              | Android sharing (native Kotlin)                                                                                                                                                  | 6–8 wk   | —       |
+| **[5](phases/phase-5-multi-viewer.md)**         | Multi-viewer over P2P mesh (2–3 viewers), no SFU                                                                                                                                 | 2–3 wk   | —       |
+| **[6](phases/phase-6-quality-audio.md)**        | AV1 opt-in, adaptive tuning, system audio (Windows first)                                                                                                                        | 3–4 wk   | —       |
+| **[7](phases/phase-7-teaching-mode.md)**        | Teaching Mode: pointer, laser, annotation, chat over DataChannel                                                                                                                 | 4–6 wk   | —       |
+| **[8](phases/phase-8-10-long-term.md)**         | iOS sharing (ReplayKit) — its own sub-project                                                                                                                                    | 8–12 wk  | —       |
+| **[9](phases/phase-8-10-long-term.md)**         | SFU via LiveKit + SFrame E2EE                                                                                                                                                    | 6+ wk    | —       |
+| **[10](phases/phase-8-10-long-term.md)**        | Remote control — per-OS, explicit approval, separate design doc                                                                                                                  | —        | —       |
 
 **A shippable public MVP (Phases 0 → 3a) is roughly 4–6 months part-time.**
 Anything shorter is not counting reconnection, TURN and code signing — which
