@@ -196,8 +196,31 @@ been exercised is a TURN path that does not work. Force it:
 - **Viewer:** append `?relay=1` to the URL.
 - **Sharer:** set `VITE_FORCE_RELAY=1` and restart.
 
-This needs real TURN credentials in `.env.local` — see `.env.example`.
-Cloudflare Realtime TURN is free for the first 1 TB per month (ADR-0004).
+TURN credentials are required, and `pnpm turn` fetches them:
+
+1. **dash.cloudflare.com → Realtime → TURN Keys → Create.** Free, and the
+   first 1 TB per month costs nothing (ADR-0004).
+2. Put the two values in `.env.turn` at the repository root — it is gitignored,
+   and the token must not go anywhere else:
+
+   ```
+   CLOUDFLARE_TURN_KEY_ID=...
+   CLOUDFLARE_TURN_API_TOKEN=...
+   ```
+
+3. ```bash
+   pnpm turn
+   ```
+
+It writes short-lived credentials into both apps' `.env.local`. The long-term
+key never leaves this machine — the same arrangement Phase 2's
+`GET /api/v1/ice-servers` endpoint formalises, so no client ever ships a
+long-lived secret.
+
+> **Not optional.** The first cross-network attempt failed outright: a PC and a
+> phone on mobile data could find no direct path, and with no relay configured
+> the connection simply failed. See
+> [phase-0.5](phases/phase-0.5-walking-skeleton.md).
 
 ### 5. Record the result
 
