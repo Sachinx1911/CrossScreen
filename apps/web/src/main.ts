@@ -2,6 +2,7 @@ import {
   IceCandidateQueue,
   SignalingClient,
   formatSnapshot,
+  hasTurnServer,
   readConnectionSnapshot,
 } from '@crossscreen/webrtc-core';
 
@@ -102,6 +103,17 @@ function createPeerConnection(signaling: SignalingClient, remoteId: string): RTC
 }
 
 async function start(): Promise<void> {
+  // ?relay=1 with no TURN server gathers no candidates at all and then fails
+  // without saying anything. See hasTurnServer.
+  if (forceRelay() && !hasTurnServer(iceServers())) {
+    setStatus('Relay forced, but no TURN server is configured', 'bad');
+    hint.textContent =
+      'Add TURN credentials with `pnpm turn`, or drop ?relay=1 from the URL. ' +
+      'Forcing the relay without one discards every candidate and the connection ' +
+      'fails silently — see docs/dev-setup.md.';
+    return;
+  }
+
   setStatus(forceRelay() ? 'Connecting (relay forced)…' : 'Connecting…');
 
   const signaling = new SignalingClient(config.signalingUrl);
