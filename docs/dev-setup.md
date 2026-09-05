@@ -130,16 +130,19 @@ Verified so far:
 zero CSP violations.
 
 > **The first macOS run failed for a reason worth knowing.** `pnpm install` did
-> not fetch the Electron binary despite `electron: true` in `allowBuilds`, so
+> not fetch the Electron runtime despite `electron: true` in `allowBuilds`, so
 > the first `verify:capture` spent its entire 20-second budget downloading
 > Chromium, and `desktopCapturer.getSources()` rejected with
 > `Failed to get sources`. That message is indistinguishable from the missing
-> Screen Recording permission, which is the failure everyone expects on a Mac —
-> so the obvious reading was the wrong one. If a first run on a fresh clone
-> fails that way,
-> **run it a second time before touching System Settings.** To rule it out up
-> front: `pnpm rebuild electron`, or check that
-> `node_modules/.pnpm/electron@*/node_modules/electron/dist` exists.
+> Screen Recording permission, which is the failure everyone expects on a Mac,
+> so the obvious reading sent us into System Settings to fix something that was
+> never wrong.
+>
+> `pnpm setup` now checks for the runtime and fetches it if it is missing, so
+> this should not happen again. If you meet it anyway — after an install that
+> did not go through `pnpm setup`, say — run `pnpm setup`, and note that
+> `pnpm rebuild electron` is not the fix: it exits silently having done
+> nothing, because pnpm already considers the package built.
 
 ## Running the walking skeleton locally
 

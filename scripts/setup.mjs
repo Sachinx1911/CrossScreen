@@ -11,7 +11,7 @@
  */
 
 import { execSync } from 'node:child_process';
-import { copyFileSync, existsSync } from 'node:fs';
+import { copyFileSync, existsSync, realpathSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -29,10 +29,47 @@ console.log(`platform: ${process.platform}   node: ${process.version}`);
 
 run('pnpm install');
 
+/**
+ * `pnpm install` does not always leave the Electron runtime behind, even with
+ * `electron: true` in `allowBuilds` — on a fresh clone here it did not, while
+ * esbuild's script in the same list ran fine.
+ *
+ * The cost of not noticing is out of proportion to the problem. The next
+ * command anyone runs is `verify:capture`, which spends its whole 20-second
+ * budget downloading Chromium and then reports `Failed to get sources` — the
+ * same message macOS produces when Screen Recording permission is missing. So
+ * the obvious reading sends you into System Settings to fix something that was
+ * never wrong. Cheaper to check here than to leave in the path of the first
+ * thing a new machine does.
+ */
+function ensureElectronRuntime() {
+  if (process.env['ELECTRON_SKIP_BINARY_DOWNLOAD'] === '1') return;
+
+  // realpath, because this is a symlink into pnpm's store and the installer
+  // has to run where the package actually lives.
+  let pkg;
+  try {
+    pkg = realpathSync(join(root, 'apps', 'desktop', 'node_modules', 'electron'));
+  } catch {
+    return; // Not installed at all; nothing to repair.
+  }
+  if (existsSync(join(pkg, 'dist'))) return;
+
+  // Not `pnpm rebuild electron`: it exits silently having done nothing, both
+  // from the root — where electron is nobody's direct dependency — and with
+  // -r or a filter, because pnpm already considers the package built. Its own
+  // installer is what actually fetches the runtime, and it is idempotent.
+  console.log('\nElectron is installed but its runtime is missing. Fetching it now.');
+  console.log(`\n> node install.js  (in ${pkg})`);
+  execSync(`node install.js`, { cwd: pkg, stdio: 'inherit' });
+}
+
 // ESLint's type-aware rules resolve workspace imports through the generated
 // declaration files, so linting a clone that has never been built fails with
 // "could not be resolved" rather than anything informative.
 run('pnpm build');
+
+ensureElectronRuntime();
 
 let created = 0;
 for (const dir of ENV_TARGETS) {
