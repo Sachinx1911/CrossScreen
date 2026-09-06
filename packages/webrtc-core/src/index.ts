@@ -11,3 +11,6 @@ export * from './stats.ts';
 export * from './ice-queue.ts';
 export * from './relay.ts';
 export * from './signaling-client.ts';
+export * from './events.ts';
+export * from './api-client.ts';
+export * from './sharer-session.ts';

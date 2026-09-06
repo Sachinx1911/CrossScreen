@@ -16,18 +16,22 @@ export class SignalingClient {
   #socket: WebSocket | undefined;
   readonly #handlers = new Map<string, Set<(m: ServerMessage) => void>>();
 
-  constructor(private readonly url: string) {}
+  readonly #url: string;
+
+  constructor(url: string) {
+    this.#url = url;
+  }
 
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
-      const socket = new WebSocket(this.url);
+      const socket = new WebSocket(this.#url);
       this.#socket = socket;
 
       socket.onopen = (): void => {
         resolve();
       };
       socket.onerror = (): void => {
-        reject(new Error(`Could not reach signaling at ${this.url}`));
+        reject(new Error(`Could not reach signaling at ${this.#url}`));
       };
 
       socket.onmessage = (event: MessageEvent<string>) => {
