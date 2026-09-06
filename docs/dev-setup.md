@@ -173,6 +173,31 @@ transport=direct path=host->host rtt=1ms res=1920x1080 fps=30 codec=VP9
 of the cross-network test is to see what it says when the two machines are not
 on the same network.
 
+## End-to-end tests
+
+```bash
+pnpm test:e2e
+```
+
+Eight tests drive the real loop across two browser contexts and three servers.
+They run in Chromium by default. To run the other engines as well:
+
+```bash
+E2E_ALL_BROWSERS=1 pnpm test:e2e
+```
+
+What that produced on Windows, 2026-09-06 — worth knowing before reading
+anything into a red run:
+
+| Engine   | Result                                                                                                                                                                                                                    |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Chromium | 8 of 8 pass                                                                                                                                                                                                               |
+| Firefox  | Does not launch at all (`spawn UNKNOWN`). An environment problem on this machine; nothing about the application was exercised                                                                                             |
+| WebKit   | The two tests needing no WebRTC pass; the six that negotiate a peer connection time out. Playwright's WebKit is not Safari and its WebRTC support is thinner, so this is weak evidence about Safari rather than a finding |
+
+Safari is answered properly by running the flow on real macOS, which is now
+available. Firefox needs a machine where Playwright can start it.
+
 ## The database, optionally
 
 Session events and connection statistics go to PostgreSQL. It is **optional in

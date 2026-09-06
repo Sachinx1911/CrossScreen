@@ -1,3 +1,4 @@
+import cors from '@fastify/cors';
 import { createRecorder, type Recorder } from '@crossscreen/db';
 import Fastify, { type FastifyInstance } from 'fastify';
 
@@ -19,6 +20,27 @@ export function buildApp(
 
   app.addHook('onClose', async () => {
     await recorder.close();
+  });
+
+  /**
+   * The desktop renderer runs at `app://bundle`, so every call it makes is
+   * cross-origin. Without this it is blocked outright and the app cannot
+   * create a session at all — which is exactly what happened.
+   *
+   * `app://bundle` is ours by construction: the scheme is registered by the
+   * main process and nothing else can serve it.
+   */
+  void app.register(cors, {
+    origin: [
+      'app://bundle',
+      config.appOrigin,
+      ...config.allowedOrigins,
+      // Development only. A deployment sets ALLOWED_ORIGINS explicitly.
+      ...(process.env['NODE_ENV'] === 'production'
+        ? []
+        : [/^http:\/\/(localhost|127\.0\.0\.1):\d+$/]),
+    ],
+    methods: ['GET', 'POST'],
   });
 
   app.get('/healthz', () => ({ ok: true }));

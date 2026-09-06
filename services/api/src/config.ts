@@ -81,4 +81,20 @@ export const config = {
 
   /** Where share links point. Only used to build the link we hand back. */
   appOrigin: process.env['APP_ORIGIN'] ?? 'http://localhost:5173',
+
+  /**
+   * Origins allowed to call this API from a browser.
+   *
+   * The web app does not need one — the dev server proxies `/api` so it is
+   * same-origin, and a deployment sits behind one hostname. **The desktop app
+   * does**: its renderer is served from `app://bundle`, so every call it makes
+   * is cross-origin and was being blocked outright.
+   *
+   * An allow-list rather than `*`, because these endpoints will carry rate
+   * limits keyed to the caller in Phase 3a.
+   */
+  allowedOrigins: (process.env['ALLOWED_ORIGINS'] ?? '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter((o) => o !== ''),
 } as const;

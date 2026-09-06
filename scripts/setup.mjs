@@ -11,7 +11,8 @@
  */
 
 import { execSync } from 'node:child_process';
-import { copyFileSync, existsSync, realpathSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
+import { copyFileSync, existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -23,6 +24,47 @@ function run(command) {
 }
 
 const ENV_TARGETS = ['apps/web', 'apps/desktop'];
+
+/**
+ * Both services refuse to start without a signing secret, and Node does not
+ * read .env files by itself — so without this, `pnpm dev` starts two services
+ * that exit immediately and a web app that reports itself unreachable.
+ *
+ * The same value in both, because they verify each other's tokens (ADR-0011).
+ * Generated per machine and never committed: a shared development secret in
+ * git is a production secret waiting for someone to reuse it.
+ */
+function writeServiceSecret() {
+  const services = ['services/api', 'services/signaling'];
+
+  // Reuse whatever is already there, so re-running setup does not invalidate
+  // tokens issued by a service that is still running.
+  const existing = services
+    .map((dir) => {
+      const file = join(root, dir, '.env.local');
+      if (!existsSync(file)) return undefined;
+      return /^SESSION_SECRET=(.+)$/m.exec(readFileSync(file, 'utf8'))?.[1];
+    })
+    .find((value) => value !== undefined && value.trim() !== '');
+
+  const secret = existing ?? randomBytes(32).toString('base64');
+
+  for (const dir of services) {
+    const file = join(root, dir, '.env.local');
+    const current = existsSync(file) ? readFileSync(file, 'utf8') : '';
+
+    if (/^SESSION_SECRET=.+$/m.test(current)) {
+      console.log(`\nkept    ${dir}/.env.local (secret already set)`);
+      continue;
+    }
+
+    const kept = current.replace(/^SESSION_SECRET=\s*$/m, '').trimEnd();
+    const lines = kept === '' ? [] : [kept];
+    lines.push(`SESSION_SECRET=${secret}`);
+    writeFileSync(file, lines.join('\n') + '\n', 'utf8');
+    console.log(`\ncreated ${dir}/.env.local with a development secret`);
+  }
+}
 
 console.log('CrossScreen setup\n');
 console.log(`platform: ${process.platform}   node: ${process.version}`);
@@ -84,6 +126,8 @@ for (const dir of ENV_TARGETS) {
   console.log(`\ncreated ${dir}/.env.local from .env.example`);
   created += 1;
 }
+
+writeServiceSecret();
 
 console.log('\n---\n');
 console.log('Ready. Next:');

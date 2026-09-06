@@ -34,15 +34,44 @@ export default defineConfig({
     video: 'retain-on-failure',
     launchOptions: {
       args: [
-        // WebRTC between two contexts in one browser needs no camera, but
-        // Chromium still gates some paths behind these in a headless run.
+        // Chromium only; ignored elsewhere. WebRTC between two contexts in one
+        // browser needs no camera, but Chromium still gates some paths behind
+        // these in a headless run.
         '--use-fake-ui-for-media-stream',
         '--autoplay-policy=no-user-gesture-required',
       ],
     },
   },
 
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  /**
+   * Chromium by default; the others behind `E2E_ALL_BROWSERS=1`.
+   *
+   * The viewer's support commitment is Chrome, Edge and Firefox on desktop,
+   * with Safari best-effort (ADR-0010), so all three belong here in principle.
+   * What actually happened when they were run, on Windows, 2026-09-06:
+   *
+   * - **Chromium** — 8 of 8 pass. Edge is Chromium and adds nothing over it.
+   * - **Firefox** — does not launch at all: `browserType.launch: spawn
+   *   UNKNOWN`. An environment problem on this machine, not a product one, and
+   *   nothing about the application was exercised either way.
+   * - **WebKit** — the two tests that need no WebRTC pass; the six that
+   *   negotiate a peer connection time out. Playwright's WebKit build is not
+   *   Safari, and its WebRTC support is materially thinner, so this is weak
+   *   evidence about Safari rather than a finding about it.
+   *
+   * Keeping a red suite for either reason would train everyone to ignore it.
+   * Safari is answered properly by running the flow on real macOS, which is
+   * now available (Phase 3b), and Firefox by running this on a machine where
+   * it starts.
+   */
+  projects:
+    process.env['E2E_ALL_BROWSERS'] === '1'
+      ? [
+          { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+          { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+          { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+        ]
+      : [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
 
   // Ports deliberately not the development ones, so a running `pnpm dev` does
   // not silently serve the tests and hide a build failure.

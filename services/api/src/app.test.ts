@@ -132,3 +132,33 @@ test('health check reports liveness', async () => {
   assert.equal(response.statusCode, 200);
   assert.equal((response.json() as { ok: boolean }).ok, true);
 });
+
+test('the desktop renderer origin is allowed through CORS', async () => {
+  // Its renderer is served from app://bundle, so every call it makes is
+  // cross-origin. Without this the desktop app cannot create a session at all,
+  // and the browser reports it as a network failure with no further detail.
+  const app = buildApp(spyRecorder().recorder as never);
+  const response = await app.inject({
+    method: 'POST',
+    url: '/api/v1/sessions',
+    headers: { origin: 'app://bundle' },
+  });
+  await app.close();
+
+  assert.equal(response.statusCode, 201);
+  assert.equal(response.headers['access-control-allow-origin'], 'app://bundle');
+});
+
+test('an unrelated origin is not allowed', async () => {
+  // An allow-list rather than `*`, because these endpoints carry rate limits
+  // keyed to the caller in Phase 3a.
+  const app = buildApp(spyRecorder().recorder as never);
+  const response = await app.inject({
+    method: 'POST',
+    url: '/api/v1/sessions',
+    headers: { origin: 'https://not-crossscreen.example' },
+  });
+  await app.close();
+
+  assert.equal(response.headers['access-control-allow-origin'], undefined);
+});

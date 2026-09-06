@@ -170,6 +170,19 @@ session expired, host ends mid-session.
 
 Added once there is enough code for it to earn its keep (Phase 0 debt).
 
+## Exit criteria — status
+
+| #   | Criterion                                                 | Status                                                                                           |
+| --- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| 1   | A stranger can be walked through it without explanation   | ⬜ needs a real person                                                                           |
+| 2   | **No SDP is exchanged before the host approves**          | ✅ 23 tests, unit and over the wire                                                              |
+| 3   | Every error surfaces in plain language                    | ✅ asserted, including that no jargon leaks                                                      |
+| 4   | A session expires on schedule and both sides are told why | ✅ 7 tests, including that the code stops resolving                                              |
+| 5   | The viewer works across the browser matrix                | ⚠️ Chromium verified; Firefox and WebKit inconclusive — see [`../dev-setup.md`](../dev-setup.md) |
+| 6   | Text in a shared spreadsheet is legible at 1080p          | ⬜ needs a real screen                                                                           |
+| 7   | Playwright covers the loop and the failure paths          | ✅ 8 tests                                                                                       |
+| 8   | macOS and Linux builds compile, labelled untested         | ✅ macOS capture verified; Linux outstanding                                                     |
+
 ## Exit criteria
 
 1. A stranger can be walked through the whole flow without explanation.
