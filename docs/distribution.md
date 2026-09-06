@@ -20,11 +20,11 @@ Windows, macOS and Linux are reached in the same deploy.
 
 What it does need, and none of it is a gate:
 
-| Requirement | Why | Handled by |
-| --- | --- | --- |
-| HTTPS | `getDisplayMedia` needs a secure context; on plain HTTP `navigator.mediaDevices` is `undefined` | Any static host, free |
-| A user gesture | Browsers refuse screen capture that was not started by a click | Product design |
-| The browser's own picker | We cannot choose the screen for the user, and should not want to | Product design |
+| Requirement              | Why                                                                                             | Handled by            |
+| ------------------------ | ----------------------------------------------------------------------------------------------- | --------------------- |
+| HTTPS                    | `getDisplayMedia` needs a secure context; on plain HTTP `navigator.mediaDevices` is `undefined` | Any static host, free |
+| A user gesture           | Browsers refuse screen capture that was not started by a click                                  | Product design        |
+| The browser's own picker | We cannot choose the screen for the user, and should not want to                                | Product design        |
 
 Known limits, which belong in the UI rather than in a surprise:
 
@@ -43,23 +43,23 @@ Known limits, which belong in the UI rather than in a surprise:
 
 ## 2. Windows desktop app
 
-| Gate | What happens without it | Lead time |
-| --- | --- | --- |
-| Code signing certificate | SmartScreen: *unrecognised app, might harm your computer* | **Days to weeks** — identity validation, then a FIPS token shipped and cleared through customs |
-| SmartScreen reputation | Even signed, a brand-new certificate carries no reputation and may warn until downloads accumulate | Weeks of real downloads; EV certificates start with reputation, at a higher price |
-| Auto-update | Users stay on the version they first installed, including its bugs | Phase 3a |
+| Gate                     | What happens without it                                                                            | Lead time                                                                                      |
+| ------------------------ | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Code signing certificate | SmartScreen: _unrecognised app, might harm your computer_                                          | **Days to weeks** — identity validation, then a FIPS token shipped and cleared through customs |
+| SmartScreen reputation   | Even signed, a brand-new certificate carries no reputation and may warn until downloads accumulate | Weeks of real downloads; EV certificates start with reputation, at a higher price              |
+| Auto-update              | Users stay on the version they first installed, including its bugs                                 | Phase 3a                                                                                       |
 
 The certificate is the single slowest thing in the entire plan, and it is slow
 for reasons no amount of effort compresses. **Start it, do not schedule it.**
 
 ## 3. macOS desktop app
 
-| Gate | What happens without it | Lead time |
-| --- | --- | --- |
-| Apple Developer Program | No Developer ID certificate, so nothing below is possible | Hours to days to enrol |
-| Developer ID signing + notarisation | Gatekeeper does not warn — it **refuses to open the app** | Minutes per build once enrolled |
-| Hardened runtime | Notarisation rejects the build | Build configuration |
-| Screen Recording permission | Capture returns nothing, and **the grant does not apply to an already-running process** — the app must be restarted before it works | Runtime; a product problem, not a shipping one |
+| Gate                                | What happens without it                                                                                                             | Lead time                                      |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| Apple Developer Program             | No Developer ID certificate, so nothing below is possible                                                                           | Hours to days to enrol                         |
+| Developer ID signing + notarisation | Gatekeeper does not warn — it **refuses to open the app**                                                                           | Minutes per build once enrolled                |
+| Hardened runtime                    | Notarisation rejects the build                                                                                                      | Build configuration                            |
+| Screen Recording permission         | Capture returns nothing, and **the grant does not apply to an already-running process** — the app must be restarted before it works | Runtime; a product problem, not a shipping one |
 
 That last row is the one users experience as "this app is broken". Phase 3b
 treats the permission flow as the real work rather than the capture itself, and
@@ -80,13 +80,13 @@ No signing authority to satisfy — the friction is fragmentation instead.
 
 ## 5. Android (Phase 4)
 
-| Gate | Detail |
-| --- | --- |
-| Google Play Developer account | $25 once |
+| Gate                          | Detail                                                                                                                         |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Google Play Developer account | $25 once                                                                                                                       |
 | Play review of screen capture | Screen-recording permissions attract scrutiny; the privacy disclosure has to be prepared early. A rejection costs about a week |
-| Foreground service ordering | Android 14+ throws `SecurityException` if `MediaProjection` starts before the foreground service |
-| Consent per session | Tokens cannot be cached across restarts; the user consents every time |
-| Screen lock stops capture | Android 15 QPR1+ auto-stops on lock. **Not fixable** — warn the user before they start |
+| Foreground service ordering   | Android 14+ throws `SecurityException` if `MediaProjection` starts before the foreground service                               |
+| Consent per session           | Tokens cannot be cached across restarts; the user consents every time                                                          |
+| Screen lock stops capture     | Android 15 QPR1+ auto-stops on lock. **Not fixable** — warn the user before they start                                         |
 
 Sideloading an APK avoids Play entirely and is a reasonable way to get the
 first testers, with the reach limit understood.

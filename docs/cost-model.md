@@ -15,11 +15,11 @@ Figures checked 2026-09-06. Prices move; the shape of the argument does not.
 
 ## 1. The short version
 
-| | Cost |
-| --- | --- |
-| Everything up to a public launch, browser sharer only | **a domain, about ₹1,000/year** |
-| Adding the signed desktop app | **+ ~$320/year** (Windows certificate + Apple Developer) |
-| Running it once people use it | **free until roughly 4,000 session-hours a month** |
+|                                                       | Cost                                                     |
+| ----------------------------------------------------- | -------------------------------------------------------- |
+| Everything up to a public launch, browser sharer only | **a domain, about ₹1,000/year**                          |
+| Adding the signed desktop app                         | **+ ~$320/year** (Windows certificate + Apple Developer) |
+| Running it once people use it                         | **free until roughly 4,000 session-hours a month**       |
 
 The second row is the reason for [ADR-0010](adr/0010-browser-sharer-is-the-primary-path.md):
 distribution costs money, the network does not.
@@ -88,14 +88,14 @@ hosts. This does not become a cost at any scale worth planning for.
 
 ## 3. What costs money, and when it starts
 
-| | When | Cost | Avoidable? |
-| --- | --- | --- | --- |
-| Domain | Phase 3a | ~₹1,000/year | No, for a public launch |
-| Windows code signing | Only to ship the desktop app | ~$215–230/year + hardware token | Yes — browser sharer needs none |
-| Apple Developer Program | Only to ship the macOS app, and for iOS ever | $99/year | Yes, until then |
-| Google Play | Phase 4, Android | $25 once | Sideloading avoids it; Play does not |
-| VPS | Phase 3a | ~$5/month | Not really |
-| TURN over 1 TB | When usage says so | $0.05/GB | No, and it should be welcome news |
+|                         | When                                         | Cost                            | Avoidable?                           |
+| ----------------------- | -------------------------------------------- | ------------------------------- | ------------------------------------ |
+| Domain                  | Phase 3a                                     | ~₹1,000/year                    | No, for a public launch              |
+| Windows code signing    | Only to ship the desktop app                 | ~$215–230/year + hardware token | Yes — browser sharer needs none      |
+| Apple Developer Program | Only to ship the macOS app, and for iOS ever | $99/year                        | Yes, until then                      |
+| Google Play             | Phase 4, Android                             | $25 once                        | Sideloading avoids it; Play does not |
+| VPS                     | Phase 3a                                     | ~$5/month                       | Not really                           |
+| TURN over 1 TB          | When usage says so                           | $0.05/GB                        | No, and it should be welcome news    |
 
 Two of these deserve more than a row.
 
@@ -118,8 +118,8 @@ cost by more than half.
 
 ### Not signing is not free either
 
-An unsigned Windows build meets SmartScreen: *unrecognised app, might harm your
-computer*. An unsigned macOS build meets Gatekeeper, which does not warn — it
+An unsigned Windows build meets SmartScreen: _unrecognised app, might harm your
+computer_. An unsigned macOS build meets Gatekeeper, which does not warn — it
 refuses. For software whose first action is to ask permission to record the
 screen, arriving with that attached costs more trust than the certificate costs
 money. **Ship signed or ship in the browser; do not ship unsigned.**
@@ -131,12 +131,12 @@ money. **Ship signed or ship in the browser; do not ship unsigned.**
 The point of knowing the ceiling is to make crossing it uneventful. Four things
 have to be true today, and three of them already are.
 
-| Concern | Guarantee | Where |
-| --- | --- | --- |
-| Swapping TURN provider | Clients never hold a provider's credentials; they call `GET /api/v1/ice-servers` and receive short-lived ones. Switching is server configuration. | [ADR-0004](adr/0004-managed-turn-for-mvp.md), Phase 2 |
-| Signaling outgrowing one machine | Live state sits behind a `SessionStore` interface. Redis becomes an implementation, not a rewrite. | [ADR-0005](adr/0005-no-redis-in-mvp.md) |
-| Many viewers per session | Mesh to 2–3 viewers, then an SFU. Deliberately deferred, with the trigger written down instead of guessed. | Phases 5 and 9 |
-| Adding accounts and billing | Sessions are anonymous by design, not by accident, and nothing assumes an absent user table. | [ADR-0007](adr/0007-no-accounts-in-mvp.md) |
+| Concern                          | Guarantee                                                                                                                                         | Where                                                 |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Swapping TURN provider           | Clients never hold a provider's credentials; they call `GET /api/v1/ice-servers` and receive short-lived ones. Switching is server configuration. | [ADR-0004](adr/0004-managed-turn-for-mvp.md), Phase 2 |
+| Signaling outgrowing one machine | Live state sits behind a `SessionStore` interface. Redis becomes an implementation, not a rewrite.                                                | [ADR-0005](adr/0005-no-redis-in-mvp.md)               |
+| Many viewers per session         | Mesh to 2–3 viewers, then an SFU. Deliberately deferred, with the trigger written down instead of guessed.                                        | Phases 5 and 9                                        |
+| Adding accounts and billing      | Sessions are anonymous by design, not by accident, and nothing assumes an absent user table.                                                      | [ADR-0007](adr/0007-no-accounts-in-mvp.md)            |
 
 The one that is not yet true: **the desktop build is not signed, and the
 signing identity does not exist.** That is fine while the browser is the way

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 
 /**
@@ -14,7 +14,12 @@ import { test } from 'node:test';
  */
 
 const here = dirname(fileURLToPath(import.meta.url));
-const LOAD_CONFIG = `import('${join(here, 'config.ts')}').then((m) => console.log(m.config.port));`;
+
+// A file:// URL rather than a plain path. On Windows a bare absolute path is
+// rejected by the ESM loader, which reads `D:` as a URL scheme, and its
+// backslashes would be escape sequences inside this string literal besides.
+const configUrl = pathToFileURL(join(here, 'config.ts')).href;
+const LOAD_CONFIG = `import('${configUrl}').then((m) => console.log(m.config.port));`;
 
 function loadWith(port: string | undefined): { code: number; output: string } {
   const env = { ...process.env };

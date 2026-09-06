@@ -60,15 +60,15 @@ This replaces §6 of the brief. **Two matrices, not one.**
 
 ### Sharer capability (the constrained side)
 
-| Platform                                         | Method                                            | v1 status               |
-| ------------------------------------------------ | ------------------------------------------------- | ----------------------- |
-| Windows 10/11                                    | Desktop app (Chromium → Windows Graphics Capture) | ✅ Phase 1              |
-| macOS 13+                                        | Desktop app (Chromium → ScreenCaptureKit)         | ✅ Phase 1              |
-| Linux (GNOME/KDE, Wayland or X11)                | Desktop app (Chromium → PipeWire portal)          | ✅ Phase 1              |
-| Desktop browser (Chrome/Edge/Firefox/Safari 17+) | `getDisplayMedia` — **no install**                | ✅ Phase 1 (bonus path) |
-| Android 10+                                      | **Native app required** (`MediaProjection`)       | Phase 4                 |
-| iOS/iPadOS                                       | Native app + ReplayKit Broadcast Extension        | **Deferred — Phase 7+** |
-| Mobile browser                                   | ❌ **Impossible**                                 | Never                   |
+| Platform                                         | Method                                            | v1 status                                    |
+| ------------------------------------------------ | ------------------------------------------------- | -------------------------------------------- |
+| Windows 10/11                                    | Desktop app (Chromium → Windows Graphics Capture) | ✅ Phase 1                                   |
+| macOS 13+                                        | Desktop app (Chromium → ScreenCaptureKit)         | ✅ Phase 1                                   |
+| Linux (GNOME/KDE, Wayland or X11)                | Desktop app (Chromium → PipeWire portal)          | ✅ Phase 1                                   |
+| Desktop browser (Chrome/Edge/Firefox/Safari 17+) | `getDisplayMedia` — **no install**                | ✅ Phase 1 — **the primary path** (ADR-0010) |
+| Android 10+                                      | **Native app required** (`MediaProjection`)       | Phase 4                                      |
+| iOS/iPadOS                                       | Native app + ReplayKit Broadcast Extension        | **Deferred — Phase 7+**                      |
+| Mobile browser                                   | ❌ **Impossible**                                 | Never                                        |
 
 ### Viewer capability (near-universal — this is the easy side)
 
@@ -78,6 +78,14 @@ This replaces §6 of the brief. **Two matrices, not one.**
 | Android Chrome / Samsung Internet | Web viewer        | ✅ Phase 1 |
 | iOS/iPadOS Safari                 | Web viewer        | ✅ Phase 1 |
 | Desktop app                       | Reuses web viewer | ✅ Phase 1 |
+
+> **Superseded in part by [ADR-0010](adr/0010-browser-sharer-is-the-primary-path.md).**
+> This table ranked the two desktop sharers on capability, which put the app
+> first. Ranked instead on how quickly someone who has never heard of
+> CrossScreen ends up looking at a screen, the browser wins — and shipping a
+> signed desktop app costs roughly $320 a year before the first user arrives,
+> with the cheap signing route unavailable to an individual in India. The
+> Electron app is unchanged and still planned; it is no longer the way in.
 
 **Strategic implication:** the "any device" promise is delivered on the **viewer** side from day one. Sharing rolls out platform by platform. Marketing must say _"Share from your computer, watch on anything"_ until Android ships — not _"any device to any device"_.
 

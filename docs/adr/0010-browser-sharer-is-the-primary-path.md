@@ -16,19 +16,19 @@ version of the same thing.
 
 But the product's stated purpose is not capability. It is the moment a friend
 asks what you are doing and you want them to see, without either of you setting
-anything up. Ranked on *how fast a person who has never heard of CrossScreen
-ends up looking at a screen*, the two paths are not close — and the gap is not
+anything up. Ranked on _how fast a person who has never heard of CrossScreen
+ends up looking at a screen_, the two paths are not close — and the gap is not
 mainly technical.
 
 **Shipping a desktop app to strangers costs money before the first user
 arrives, and the cheap route is closed to us.**
 
-| | Browser sharer | Electron app |
-| --- | --- | --- |
-| To start sharing | open a link | download ~150 MB, install |
-| Windows | nothing | code signing certificate, or a SmartScreen warning |
-| macOS | nothing | Developer ID + notarisation, or a Gatekeeper refusal |
-| Cost before the first user | none | ~$320/year |
+|                            | Browser sharer | Electron app                                         |
+| -------------------------- | -------------- | ---------------------------------------------------- |
+| To start sharing           | open a link    | download ~150 MB, install                            |
+| Windows                    | nothing        | code signing certificate, or a SmartScreen warning   |
+| macOS                      | nothing        | Developer ID + notarisation, or a Gatekeeper refusal |
+| Cost before the first user | none           | ~$320/year                                           |
 
 The details behind that last row, checked 2026-09-06:
 
@@ -70,8 +70,8 @@ Concretely:
    already Electron, and nothing there is discarded — but it is distributed
    when signing is in place, not before.
 3. Code signing moves out of the critical path to launch. It stays in Phase 3a
-   as the gate for *desktop app distribution*, which is no longer the gate for
-   *having users*.
+   as the gate for _desktop app distribution_, which is no longer the gate for
+   _having users_.
 
 ## Consequences
 
