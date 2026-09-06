@@ -11,13 +11,18 @@ import { useEffect, useState } from 'react';
  */
 
 export type Route =
-  { name: 'home' } | { name: 'share' } | { name: 'join'; token?: string } | { name: 'session' };
+  | { name: 'home' }
+  | { name: 'share' }
+  | { name: 'join'; token?: string }
+  | { name: 'session' }
+  | { name: 'settings' };
 
 export function parseRoute(pathname: string): Route {
   const parts = pathname.split('/').filter(Boolean);
 
   if (parts[0] === 'share') return { name: 'share' };
   if (parts[0] === 'join') return { name: 'join' };
+  if (parts[0] === 'settings') return { name: 'settings' };
 
   // The share link. Short on purpose: it gets pasted into messages, and every
   // extra character is one more chance for a line break to break it.

@@ -39,6 +39,15 @@ export function useSafetyNotice(): { needed: boolean; acknowledge: () => void } 
   };
 }
 
+/** Settings' "show it again" — the only way back to a warning acknowledged once. */
+export function forgetSafetyNoticeSeen(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    /* nothing to do; it was already going to be shown again */
+  }
+}
+
 export function SafetyNotice({ onAcknowledge }: { onAcknowledge: () => void }) {
   return (
     <div className="space-y-4">

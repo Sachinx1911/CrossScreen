@@ -26,6 +26,7 @@ test('the named screens resolve', () => {
   assert.deepEqual(parseRoute(''), { name: 'home' });
   assert.deepEqual(parseRoute('/share'), { name: 'share' });
   assert.deepEqual(parseRoute('/join'), { name: 'join' });
+  assert.deepEqual(parseRoute('/settings'), { name: 'settings' });
 });
 
 test('an unknown path goes home rather than nowhere', () => {

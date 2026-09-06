@@ -42,7 +42,7 @@ yet — and so the deferred screens are not forgotten.
 | **Host approval prompt**                                       | `apps/desktop` | 1 — **new, not in mockup**, ✅ built |
 | **First-share safety notice**                                  | `apps/desktop` | 1 — **new, not in mockup**, ✅ built |
 | Sessions (recent, localStorage)                                | both           | 1 — ✅ built                         |
-| Settings                                                       | both           | 1 (minimal)                          |
+| Settings                                                       | both           | 1 (minimal) — ✅ built               |
 | Android: Share / Join                                          | `apps/android` | 4                                    |
 | Teaching Mode sidebar (draw, pointer, chat, screenshot)        | `apps/web`     | 7                                    |
 | iPhone: Share / Start Broadcast                                | `apps/ios`     | 8                                    |

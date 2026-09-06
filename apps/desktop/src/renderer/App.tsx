@@ -13,6 +13,7 @@ import {
 
 import { Joiner } from './Joiner.tsx';
 import { SafetyNotice, useSafetyNotice } from './SafetyNotice.tsx';
+import { Settings } from './Settings.tsx';
 import { SourcePicker } from './SourcePicker.tsx';
 import {
   ApprovalPrompt,
@@ -25,7 +26,7 @@ import {
 } from './components.tsx';
 import { apiBaseUrl, signalingUrl } from './config.ts';
 
-type Mode = 'share' | 'join';
+type Mode = 'share' | 'join' | 'settings';
 type Phase = 'choosing' | 'starting' | 'sharing' | 'switching' | 'stopped';
 
 /**
@@ -190,6 +191,19 @@ export function App() {
     );
   }
 
+  if (mode === 'settings') {
+    return (
+      <div className="mx-auto max-w-3xl space-y-5 p-6">
+        <h1 className="text-xl font-semibold">CrossScreen</h1>
+        <Settings
+          onBack={() => {
+            setMode('share');
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-3xl space-y-5 p-6">
       <h1 className="text-xl font-semibold">
@@ -202,6 +216,16 @@ export function App() {
           watch could never reach Join at all. */}
       {phase === 'choosing' && (
         <p className="text-sm text-[var(--text-muted)]">
+          <button
+            type="button"
+            onClick={() => {
+              setMode('settings');
+            }}
+            className="text-[var(--text-muted)] underline"
+          >
+            Settings
+          </button>
+          {' · '}
           Want to watch someone else's screen instead?{' '}
           <button
             type="button"

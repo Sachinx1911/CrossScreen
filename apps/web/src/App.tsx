@@ -4,6 +4,7 @@ import { Layout } from './components/Layout.tsx';
 import { useRoute } from './router.ts';
 import { Home } from './screens/Home.tsx';
 import { Join } from './screens/Join.tsx';
+import { Settings } from './screens/Settings.tsx';
 import { Share } from './screens/Share.tsx';
 import { Viewer } from './screens/Viewer.tsx';
 
@@ -30,6 +31,7 @@ export function App() {
       {route.name === 'join' && (
         <Join {...(route.token === undefined ? {} : { token: route.token })} onJoin={setJoining} />
       )}
+      {route.name === 'settings' && <Settings />}
     </Layout>
   );
 }

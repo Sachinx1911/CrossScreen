@@ -14,6 +14,9 @@ class FakeStorage {
   setItem(key: string, value: string): void {
     this.#data.set(key, value);
   }
+  removeItem(key: string): void {
+    this.#data.delete(key);
+  }
   clear(): void {
     this.#data.clear();
   }
@@ -22,7 +25,8 @@ class FakeStorage {
 const storage = new FakeStorage();
 Object.defineProperty(globalThis, 'localStorage', { value: storage, configurable: true });
 
-const { recordSharedSession, readRecentSessions } = await import('./recent-sessions.ts');
+const { recordSharedSession, readRecentSessions, clearRecentSessions } =
+  await import('./recent-sessions.ts');
 
 test.beforeEach(() => {
   storage.clear();
@@ -49,6 +53,13 @@ test('the list does not grow without bound', () => {
   }
   assert.equal(readRecentSessions().length, 5, 'capped rather than kept forever');
   assert.equal(readRecentSessions()[0]?.joinCode, '000009', 'the newest survives the cap');
+});
+
+test('clearing removes the history entirely, not just the most recent entry', () => {
+  recordSharedSession({ joinCode: '111111', joinCodeDisplay: '111 111' }, 1_000);
+  recordSharedSession({ joinCode: '222222', joinCodeDisplay: '222 222' }, 2_000);
+  clearRecentSessions();
+  assert.deepEqual(readRecentSessions(), []);
 });
 
 test('storage holding something else entirely reads as no history', () => {

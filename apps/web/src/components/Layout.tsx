@@ -6,7 +6,7 @@ export function Layout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col">
       <header className="border-b border-[var(--border-subtle)]">
-        <div className="mx-auto flex max-w-4xl items-center gap-3 px-5 py-4">
+        <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-5 py-4">
           <a
             href="/"
             onClick={(event) => {
@@ -19,6 +19,16 @@ export function Layout({ children }: { children: ReactNode }) {
           </a>
           {/* No Sign in, no Pricing. The mockup had both, and both contradict
               its own "No Account Required" promise (ADR-0007, ui-scope C2). */}
+          <a
+            href="/settings"
+            onClick={(event) => {
+              event.preventDefault();
+              navigate('/settings');
+            }}
+            className="text-sm text-[var(--text-muted)] hover:text-[var(--text-strong)]"
+          >
+            Settings
+          </a>
         </div>
       </header>
 

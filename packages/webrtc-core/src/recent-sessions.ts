@@ -47,6 +47,15 @@ export function readRecentSessions(): RecentSession[] {
   }
 }
 
+/** Settings' "clear history" — the only way to remove this once it exists. */
+export function clearRecentSessions(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    /* nothing to do; there was nothing readable to begin with */
+  }
+}
+
 function isRecentSession(value: unknown): value is RecentSession {
   if (typeof value !== 'object' || value === null) return false;
   const v = value as Record<string, unknown>;
