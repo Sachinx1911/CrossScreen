@@ -5,6 +5,7 @@ import type { ConnectionState, JoinRequestInfo } from '@crossscreen/protocol';
 import {
   ApiClient,
   SharerSession,
+  recordSharedSession,
   type CreatedSession,
   type QualityMode,
 } from '@crossscreen/webrtc-core';
@@ -104,7 +105,9 @@ export function Share() {
     });
 
     try {
-      setSession(await active.start());
+      const created = await active.start();
+      setSession(created);
+      recordSharedSession(created);
       setPhase('sharing');
     } catch (err) {
       // A cancellation is our own doing — the component went away mid-start —

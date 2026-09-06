@@ -1,6 +1,14 @@
 import { Button, Muted } from '../components/Primitives.tsx';
 import { navigate } from '../router.ts';
 import { BrowserCapture } from '@crossscreen/capture';
+import { readRecentSessions } from '@crossscreen/webrtc-core';
+
+const dateFormat = new Intl.DateTimeFormat(undefined, {
+  month: 'short',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+});
 
 /**
  * The landing screen.
@@ -11,6 +19,10 @@ import { BrowserCapture } from '@crossscreen/capture';
  */
 export function Home() {
   const capabilities = new BrowserCapture().capabilities();
+  // Read once, not kept in state: this list only ever changes from the Share
+  // screen, which is a full navigation away and back — there is no moment
+  // this component is on screen while it goes stale.
+  const recent = readRecentSessions();
 
   return (
     <div className="mx-auto max-w-2xl text-center">
@@ -61,6 +73,28 @@ export function Home() {
           </div>
         ))}
       </dl>
+
+      {recent.length > 0 && (
+        <div className="mt-14 text-left">
+          <h2 className="text-sm font-semibold tracking-wide text-[var(--text-muted)] uppercase">
+            Recent sessions
+          </h2>
+          {/* Not clickable: every one of these has long since expired
+              (SESSION_TIMEOUTS caps a session at hours, this list at neither) —
+              this is a record kept on this device, not a way back in. */}
+          <ul className="mt-3 divide-y divide-[var(--border-subtle)]">
+            {recent.map((session) => (
+              <li
+                key={session.startedAt}
+                className="flex items-center justify-between py-2 text-sm"
+              >
+                <span className="session-code">{session.joinCodeDisplay}</span>
+                <Muted>{dateFormat.format(session.startedAt)}</Muted>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

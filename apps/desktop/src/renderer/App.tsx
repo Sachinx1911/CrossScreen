@@ -5,6 +5,8 @@ import type { ConnectionState, JoinRequestInfo } from '@crossscreen/protocol';
 import {
   ApiClient,
   SharerSession,
+  recordSharedSession,
+  readRecentSessions,
   type CreatedSession,
   type QualityMode,
 } from '@crossscreen/webrtc-core';
@@ -115,7 +117,9 @@ export function App() {
     });
 
     try {
-      setSession(await active.start());
+      const created = await active.start();
+      setSession(created);
+      recordSharedSession(created);
       setPhase('sharing');
     } catch (err) {
       if (err instanceof Error && err.message === 'cancelled') return;
@@ -156,6 +160,10 @@ export function App() {
     if (allow) sharer.current?.approve(participantId);
     else sharer.current?.reject(participantId);
   }
+
+  // Read fresh on every render rather than kept in state: the only writer is
+  // `share()` above, which already triggers a re-render by setting `session`.
+  const recentSessions = readRecentSessions();
 
   if (mode === 'join') {
     return (
@@ -227,6 +235,26 @@ export function App() {
             />
           )}
         </>
+      )}
+
+      {/* Not clickable: every one of these has long since expired — a record
+          kept on this device, not a way back into the session. */}
+      {phase === 'choosing' && !safety.needed && recentSessions.length > 0 && (
+        <Card>
+          <h2 className="mb-2 text-xs font-semibold tracking-wide text-[var(--text-muted)] uppercase">
+            Recent sessions
+          </h2>
+          <ul className="divide-y divide-[var(--border-subtle)]">
+            {recentSessions.map((s) => (
+              <li key={s.startedAt} className="flex items-center justify-between py-2 text-sm">
+                <span className="session-code">{s.joinCodeDisplay}</span>
+                <span className="text-[var(--text-muted)]">
+                  {new Date(s.startedAt).toLocaleString()}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Card>
       )}
 
       {phase === 'starting' && <Card>Starting…</Card>}

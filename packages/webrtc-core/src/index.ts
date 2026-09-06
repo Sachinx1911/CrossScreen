@@ -15,3 +15,4 @@ export * from './events.ts';
 export * from './api-client.ts';
 export * from './sharer-session.ts';
 export * from './viewer-session.ts';
+export * from './recent-sessions.ts';
