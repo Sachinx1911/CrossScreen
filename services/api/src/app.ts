@@ -1,5 +1,7 @@
+import { createRecorder, type Recorder } from '@crossscreen/db';
 import Fastify, { type FastifyInstance } from 'fastify';
 
+import { config } from './config.ts';
 import { log } from './log.ts';
 import { createSession, iceServers } from './sessions.ts';
 
@@ -10,8 +12,14 @@ import { createSession, iceServers } from './sessions.ts';
  * so tests can start one on an ephemeral port without the process listening,
  * and so `server.ts` stays the only thing that binds a socket.
  */
-export function buildApp(): FastifyInstance {
+export function buildApp(
+  recorder: Recorder = createRecorder(config.databaseUrl, log),
+): FastifyInstance {
   const app = Fastify({ logger: false, trustProxy: true });
+
+  app.addHook('onClose', async () => {
+    await recorder.close();
+  });
 
   app.get('/healthz', () => ({ ok: true }));
 
@@ -26,6 +34,14 @@ export function buildApp(): FastifyInstance {
   app.post('/api/v1/sessions', async (request, reply) => {
     const session = await createSession();
 
+    // The internal id is recorded, the join code is not: a durable table of
+    // codes would outlive the sessions they belong to for no purpose.
+    recorder.sessionEvent({
+      sessionId: session.sessionId,
+      event: 'created',
+      detail: { expiresAt: session.expiresAt },
+    });
+
     log.info('session.created', {
       // The code is logged and the tokens are not. A code is a lookup key that
       // grants nothing; a host token grants authorship of the session, and
@@ -35,7 +51,10 @@ export function buildApp(): FastifyInstance {
       ip: request.ip,
     });
 
-    return reply.code(201).send(session);
+    // `sessionId` is stripped rather than never created: the recorder needs
+    // it, and the client must not see it (architecture §7).
+    const { sessionId: _internal, ...body } = session;
+    return reply.code(201).send(body);
   });
 
   /**

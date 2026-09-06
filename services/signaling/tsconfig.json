@@ -13,6 +13,9 @@
     },
     {
       "path": "../../packages/logging"
+    },
+    {
+      "path": "../../packages/db"
     }
   ]
 }

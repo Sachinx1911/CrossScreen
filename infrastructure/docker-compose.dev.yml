@@ -1,0 +1,33 @@
+# PostgreSQL for local development.
+#
+# Only the database. The services run from source with `pnpm dev`, because a
+# container in that loop would mean rebuilding to see a change — and the whole
+# point of the development setup is that a change is visible immediately.
+#
+#   docker compose -f infrastructure/docker-compose.dev.yml up -d
+#   DATABASE_URL=postgres://crossscreen:crossscreen@localhost:5432/crossscreen \
+#     pnpm --filter @crossscreen/db migrate
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: crossscreen-postgres
+    restart: unless-stopped
+    environment:
+      # Development only. Production credentials come from the environment and
+      # are never written down in a file that lives in git.
+      POSTGRES_USER: crossscreen
+      POSTGRES_PASSWORD: crossscreen
+      POSTGRES_DB: crossscreen
+    ports:
+      - '5432:5432'
+    volumes:
+      - crossscreen-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U crossscreen -d crossscreen']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  crossscreen-pgdata:

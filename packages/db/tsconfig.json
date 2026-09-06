@@ -7,15 +7,5 @@
   },
   "include": ["src/**/*.ts"],
   "exclude": ["src/**/*.test.ts"],
-  "references": [
-    {
-      "path": "../../packages/protocol"
-    },
-    {
-      "path": "../../packages/logging"
-    },
-    {
-      "path": "../../packages/db"
-    }
-  ]
+  "references": [{ "path": "../logging" }]
 }

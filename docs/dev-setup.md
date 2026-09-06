@@ -173,6 +173,40 @@ transport=direct path=host->host rtt=1ms res=1920x1080 fps=30 codec=VP9
 of the cross-network test is to see what it says when the two machines are not
 on the same network.
 
+## The database, optionally
+
+Session events and connection statistics go to PostgreSQL. It is **optional in
+development**: without `DATABASE_URL` each service runs with a no-op recorder
+and says so once at startup, so a fresh clone works with nothing installed.
+
+To run it:
+
+```bash
+docker compose -f infrastructure/docker-compose.dev.yml up -d
+```
+
+```bash
+DATABASE_URL=postgres://crossscreen:crossscreen@localhost:5432/crossscreen pnpm --filter @crossscreen/db migrate
+```
+
+Then start the services with the same `DATABASE_URL`.
+
+The one query this exists to answer, and the reason Phase 2 needs it — what
+fraction of connections went direct rather than through a relay, which is what
+predicts TURN cost (ADR-0004):
+
+```sql
+SELECT transport, count(*), round(100.0 * count(*) / sum(count(*)) OVER (), 1) AS pct
+FROM connection_stats
+WHERE occurred_at > now() - interval '7 days'
+GROUP BY transport;
+```
+
+> **Not yet verified against a real database.** The schema and the writer are
+> written and typechecked but have never been run — Docker was not available on
+> the machine they were built on. Run the two commands above before relying on
+> anything landing in a table.
+
 ## Freeing a stuck port
 
 The signaling server refuses to start if something already holds its port, and

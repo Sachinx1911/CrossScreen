@@ -15,8 +15,22 @@ before(async () => {
   ({ buildApp } = await import('./app.ts'));
 });
 
+/** Collects what would have been recorded, without a database. */
+function spyRecorder() {
+  const events: unknown[] = [];
+  return {
+    events,
+    recorder: {
+      sessionEvent: (event: unknown) => events.push(event),
+      connectionStat: () => undefined,
+      abuseEvent: () => undefined,
+      close: () => Promise.resolve(),
+    },
+  };
+}
+
 async function createSession() {
-  const app = buildApp();
+  const app = buildApp(spyRecorder().recorder as never);
   const response = await app.inject({ method: 'POST', url: '/api/v1/sessions' });
   await app.close();
   return { response, body: response.json() as Record<string, unknown> };
@@ -50,13 +64,35 @@ test('the host token verifies and names the session it was issued for', async ()
 test('the internal session id never leaves the service', async () => {
   // It lives inside the signed token, where only signaling reads it. Putting
   // it in the response body would expose an identifier architecture §7 keeps
-  // deliberately private.
+  // deliberately private — and it is now generated where the handler can see
+  // it, which is exactly when that becomes easy to get wrong.
   const { response, body } = await createSession();
   assert.equal(body['sessionId'], undefined);
 
   const result = await verifyHostToken(body['hostToken'] as string, SECRET);
   if (!result.ok) assert.fail('token should verify');
   assert.ok(!response.body.includes(result.claims.sid), 'session id leaked into the response');
+});
+
+test('creation is recorded against the internal id, without the join code', async () => {
+  const spy = spyRecorder();
+  const app = buildApp(spy.recorder as never);
+  const response = await app.inject({ method: 'POST', url: '/api/v1/sessions' });
+  await app.close();
+
+  const body = response.json() as Record<string, unknown>;
+  assert.equal(spy.events.length, 1);
+
+  const event = spy.events[0] as Record<string, unknown>;
+  assert.equal(event['event'], 'created');
+  assert.match(String(event['sessionId']), /^[0-9a-f-]{36}$/);
+
+  // A durable table of join codes would outlive the sessions they belong to
+  // for no purpose, and tokens have no business in a database at all.
+  const serialised = JSON.stringify(event);
+  assert.ok(!serialised.includes(body['joinCode'] as string), 'the join code was recorded');
+  assert.ok(!serialised.includes(body['joinToken'] as string), 'the link token was recorded');
+  assert.ok(!serialised.includes(body['hostToken'] as string), 'the host token was recorded');
 });
 
 test('two sessions never share identifiers', async () => {

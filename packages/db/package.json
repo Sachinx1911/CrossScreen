@@ -1,0 +1,33 @@
+{
+  "name": "@crossscreen/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Durable session events and connection statistics",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit false --emitDeclarationOnly",
+    "test": "node --test src/*.test.ts",
+    "migrate": "node src/migrate.ts"
+  },
+  "dependencies": {
+    "@crossscreen/logging": "workspace:*",
+    "postgres": "^3.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.9.3"
+  }
+}

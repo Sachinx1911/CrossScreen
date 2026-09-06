@@ -49,6 +49,13 @@ function secretFromEnv(name: string, minLength: number): string {
 }
 
 export const config = {
+  /**
+   * Where durable records go. Absent is allowed: the service then runs with a
+   * no-op recorder and says so once, so a clone works with no Postgres
+   * installed. It is not allowed to be absent quietly in production.
+   */
+  databaseUrl: process.env['DATABASE_URL'],
+
   port: intFromEnv('API_PORT', 8788, 1, 65535),
   host: process.env['API_HOST'] ?? '127.0.0.1',
 

@@ -85,6 +85,14 @@ plan visible.
 **Privacy:** no screen content, no audio, and no full IP addresses — store a
 truncated or hashed IP for rate limiting and nothing more (architecture §42).
 
+> **Slice 1.4 written, not yet verified.** `packages/db` records session
+> events, connection statistics and failed code attempts. The no-op path — what
+> runs without `DATABASE_URL` — is tested and is what every current run uses.
+> **The PostgreSQL path has never been executed**: no Docker daemon was
+> available on the machine it was built on. The schema, the batching writer and
+> the migration runner are typechecked and unrun, and that is a different thing
+> from working. Verify before Phase 2 depends on the numbers.
+
 ### 1.5 — `packages/webrtc-core`
 
 The peer logic shared by web and desktop, promoted from the Phase 0.5 helper.

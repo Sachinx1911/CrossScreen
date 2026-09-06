@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 
+import { createRecorder, hashIp } from '@crossscreen/db';
 import { HEARTBEAT, parseClientEnvelope } from '@crossscreen/protocol';
 
 import { config } from './config.ts';
@@ -17,6 +18,7 @@ import { send } from './handlers.ts';
  */
 
 const store = new InMemorySessionStore();
+const recorder = createRecorder(config.databaseUrl, log);
 
 const http = createServer((req, res) => {
   if (req.url === '/healthz') {
@@ -32,8 +34,11 @@ const wss = new WebSocketServer({ server: http });
 wss.on('connection', (socket: WebSocket, req) => {
   const connection: Connection = {
     socket,
+    recorder,
     userAgent: req.headers['user-agent'],
-    remoteAddress: req.socket.remoteAddress,
+    // Hashed at the edge, so the address itself never travels further into the
+    // service than this line (architecture §42).
+    ipHash: hashIp(req.socket.remoteAddress, config.sessionSecret),
   };
 
   let alive = true;
@@ -101,6 +106,11 @@ startSweeper(store, (session) => {
     type: 'session.ended',
     reason: session.endedReason === 'expired' ? 'expired' : 'idle_timeout',
   });
+  recorder.sessionEvent({
+    sessionId: session.sessionId,
+    event: 'ended',
+    detail: { reason: session.endedReason ?? 'expired' },
+  });
   log.info('session.expired', { sessionId: session.sessionId, reason: session.endedReason });
 });
 
@@ -130,6 +140,10 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, () => {
     log.info('signaling.stopping', { signal });
     wss.close();
-    http.close(() => process.exit(0));
+    // Flush what is queued before going, so a clean restart does not throw
+    // away the last couple of seconds of records.
+    void recorder.close().then(() => {
+      http.close(() => process.exit(0));
+    });
   });
 }

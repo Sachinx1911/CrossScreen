@@ -16,6 +16,12 @@ import { config } from './config.ts';
  */
 
 export interface CreatedSession {
+  /**
+   * Internal, and stripped before the response is sent. It exists here only so
+   * that the request handler can record the event against it — architecture §7
+   * keeps this identifier off the wire.
+   */
+  sessionId: string;
   /** Six digits, unformatted — the display grouping is the client's business. */
   joinCode: string;
   /** Ready to show, `482 719`. */
@@ -42,6 +48,7 @@ export async function createSession(now = Date.now()): Promise<CreatedSession> {
   };
 
   return {
+    sessionId: ids.sessionId,
     joinCode: ids.joinCode,
     joinCodeDisplay: formatJoinCode(ids.joinCode),
     joinToken: ids.joinToken,

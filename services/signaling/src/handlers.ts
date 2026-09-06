@@ -6,6 +6,7 @@ import {
   type ErrorCode,
   type ServerMessage,
 } from '@crossscreen/protocol';
+import type { Recorder } from '@crossscreen/db';
 import type { WebSocket } from 'ws';
 
 import { config } from './config.ts';
@@ -29,8 +30,14 @@ import type { SessionStore } from './session-store.ts';
 /** What a socket is, from this service's point of view. */
 export interface Connection {
   socket: WebSocket;
+  /** Where durable records go. A no-op when no database is configured. */
+  recorder: Recorder;
   userAgent: string | undefined;
-  remoteAddress: string | undefined;
+  /**
+   * A keyed hash of the address, never the address. Enough to count repeats
+   * from one source, not enough to identify anyone.
+   */
+  ipHash: string | undefined;
   /** Set once the socket identifies itself. */
   sessionId?: string;
   participantId?: string;
@@ -77,6 +84,12 @@ async function hostAttach(
   connection.participantId = session.hostId;
   connection.role = 'host';
 
+  connection.recorder.sessionEvent({
+    sessionId: session.sessionId,
+    event: 'host_attached',
+    participantId: session.hostId,
+  });
+
   send(
     connection.socket,
     { type: 'session.state', session: session.summary(), you: session.hostId },
@@ -109,10 +122,16 @@ function viewerRequest(
     // A code with no live session and a guessed code get the same answer, so
     // someone enumerating codes learns nothing about which ones exist.
     sendError(connection.socket, 'SESSION_NOT_FOUND', id);
+    // Counted for Phase 3a's rate limiting, against a keyed hash rather than
+    // the address itself (architecture §42).
+    connection.recorder.abuseEvent({
+      event: 'code_attempt_failed',
+      ...(connection.ipHash === undefined ? {} : { ipHash: connection.ipHash }),
+      detail: { joinedVia: payload.joinToken !== undefined ? 'link' : 'code' },
+    });
     log.warn('viewer.request_refused', {
       reason: 'not_found',
       joinedVia: payload.joinToken !== undefined ? 'link' : 'code',
-      ip: connection.remoteAddress,
     });
     return;
   }
@@ -152,6 +171,14 @@ function viewerRequest(
     { type: 'session.state', session: session.summary(), you: viewer.id },
     id,
   );
+  connection.recorder.sessionEvent({
+    sessionId: session.sessionId,
+    event: 'viewer_requested',
+    participantId: viewer.id,
+    // The label is coarse by design and holds nothing identifying.
+    detail: { joinedVia: viewer.joinedVia, deviceLabel: viewer.deviceLabel },
+  });
+
   log.info('viewer.pending', { sessionId: session.sessionId, participantId: viewer.id });
 }
 
@@ -211,6 +238,11 @@ function approve(
     },
   });
 
+  connection.recorder.sessionEvent({
+    sessionId: session.sessionId,
+    event: 'viewer_approved',
+    participantId: viewer.id,
+  });
   log.info('viewer.approved', { sessionId: session.sessionId, participantId: viewer.id });
 }
 
@@ -231,6 +263,11 @@ function reject(
 
   send(viewer.socket, { type: 'session.viewer.rejected' });
   session.removeViewer(viewer.id);
+  connection.recorder.sessionEvent({
+    sessionId: session.sessionId,
+    event: 'viewer_rejected',
+    participantId: viewer.id,
+  });
   log.info('viewer.rejected', { sessionId: session.sessionId, participantId: viewer.id });
 }
 
@@ -242,6 +279,11 @@ function endSession(connection: Connection, id: string, store: SessionStore): vo
   for (const viewer of session.viewers) {
     send(viewer.socket, { type: 'session.ended', reason: 'host_ended' });
   }
+  connection.recorder.sessionEvent({
+    sessionId: session.sessionId,
+    event: 'ended',
+    detail: { reason: 'host_ended' },
+  });
   store.remove(session.sessionId);
   log.info('session.ended', { sessionId: session.sessionId, reason: 'host_ended' });
 }
@@ -323,15 +365,24 @@ export async function handleMessage(
       relay(connection, payload, id, store);
       return;
     case 'stats.report':
-      // Logged rather than stored until Phase 2 builds the pipeline. The
-      // direct-versus-relay ratio is the number that predicts TURN cost.
-      log.info('stats.report', {
-        sessionId: connection.sessionId,
-        participantId: connection.participantId,
-        transport: payload.transport,
-        quality: payload.quality,
-        roundTripMs: payload.roundTripMs,
-      });
+      // The direct-versus-relay ratio across these rows is the number that
+      // predicts TURN cost, and the reason connection_stats exists (ADR-0004).
+      if (connection.sessionId !== undefined) {
+        connection.recorder.connectionStat({
+          sessionId: connection.sessionId,
+          ...(connection.participantId === undefined
+            ? {}
+            : { participantId: connection.participantId }),
+          transport: payload.transport,
+          quality: payload.quality,
+          ...(payload.roundTripMs === undefined ? {} : { roundTripMs: payload.roundTripMs }),
+          ...(payload.resolution === undefined ? {} : { resolution: payload.resolution }),
+          ...(payload.codec === undefined ? {} : { codec: payload.codec }),
+          ...(payload.framesPerSecond === undefined
+            ? {}
+            : { framesPerSecond: payload.framesPerSecond }),
+        });
+      }
       return;
   }
 }
