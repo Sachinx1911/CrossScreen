@@ -11,6 +11,7 @@ import {
 } from '@crossscreen/webrtc-core';
 
 import { ApprovalPrompt } from '../components/ApprovalPrompt.tsx';
+import { AudioToggle } from '../components/AudioToggle.tsx';
 import { CopyField } from '../components/CopyField.tsx';
 import { Button, Card, Notice, StatusDot } from '../components/Primitives.tsx';
 import { QualityToggle } from '../components/QualityToggle.tsx';
@@ -35,9 +36,13 @@ export function Share() {
   const [connection, setConnection] = useState<ConnectionState>('connecting');
   const [message, setMessage] = useState<string | undefined>();
   const [quality, setQuality] = useState<QualityMode>('text');
+  // Off by default (ui-scope.md §1 C4) — see AudioToggle for why the mockup's
+  // default of on does not hold up.
+  const [systemAudio, setSystemAudio] = useState(false);
 
   const sharer = useRef<SharerSession | undefined>(undefined);
   const capture = useRef(new BrowserCapture());
+  const capabilities = capture.current.capabilities();
   const preview = useRef<HTMLVideoElement | null>(null);
   const safety = useSafetyNotice();
 
@@ -60,7 +65,7 @@ export function Share() {
 
     let stream: MediaStream;
     try {
-      stream = await capture.current.start({ optimiseForText: true });
+      stream = await capture.current.start({ optimiseForText: true, systemAudio });
     } catch (err) {
       // Cancelling is not a failure. Saying nothing and going back is the
       // whole of the correct response.
@@ -138,7 +143,7 @@ export function Share() {
 
     let stream: MediaStream;
     try {
-      stream = await capture.current.start({ optimiseForText: true });
+      stream = await capture.current.start({ optimiseForText: true, systemAudio });
     } catch (err) {
       // Changing their mind at the picker leaves the current share running,
       // which is exactly right — nothing was broken.
@@ -175,14 +180,17 @@ export function Share() {
       {message !== undefined && <Notice tone="error">{message}</Notice>}
 
       {(phase === 'idle' || phase === 'stopped') && (
-        <Card>
+        <Card className="space-y-4">
           <p className="text-sm text-[var(--text-muted)]">
             Your browser will ask which screen or window to share. You will get a code and a link to
             send, and nobody sees anything until you allow them.
           </p>
-          <div className="mt-5">
-            <Button onClick={() => void start()}>Choose a screen</Button>
-          </div>
+          <AudioToggle
+            checked={systemAudio}
+            onChange={setSystemAudio}
+            available={capabilities.systemAudio}
+          />
+          <Button onClick={() => void start()}>Choose a screen</Button>
         </Card>
       )}
 

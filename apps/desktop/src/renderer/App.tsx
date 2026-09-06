@@ -16,6 +16,7 @@ import { SafetyNotice, useSafetyNotice } from './SafetyNotice.tsx';
 import { SourcePicker } from './SourcePicker.tsx';
 import {
   ApprovalPrompt,
+  AudioToggle,
   Button,
   Card,
   CopyField,
@@ -46,8 +47,11 @@ export function App() {
   const [connection, setConnection] = useState<ConnectionState>('connecting');
   const [message, setMessage] = useState<string | undefined>();
   const [quality, setQuality] = useState<QualityMode>('text');
+  // Off by default (ui-scope.md §1 C4) — see AudioToggle for why.
+  const [systemAudio, setSystemAudio] = useState(false);
 
   const capture = useRef(new ElectronCapture());
+  const capabilities = capture.current.capabilities();
   const sharer = useRef<SharerSession | undefined>(undefined);
 
   const stop = useCallback(() => {
@@ -75,7 +79,11 @@ export function App() {
 
     let stream: MediaStream;
     try {
-      stream = await capture.current.start({ sourceId: source.id, optimiseForText: true });
+      stream = await capture.current.start({
+        sourceId: source.id,
+        optimiseForText: true,
+        systemAudio,
+      });
     } catch (err) {
       // Cancelling is not a failure; going quietly back to the picker is the
       // whole of the correct response.
@@ -140,7 +148,11 @@ export function App() {
     setMessage(undefined);
     let stream: MediaStream;
     try {
-      stream = await capture.current.start({ sourceId: source.id, optimiseForText: true });
+      stream = await capture.current.start({
+        sourceId: source.id,
+        optimiseForText: true,
+        systemAudio,
+      });
     } catch (err) {
       if (err instanceof CaptureCancelled) {
         setPhase('sharing');
@@ -223,6 +235,11 @@ export function App() {
               ? 'Choose what to share instead. Nobody watching will be interrupted.'
               : 'Choose what to share. Nobody sees anything until you allow them.'}
           </p>
+          <AudioToggle
+            checked={systemAudio}
+            onChange={setSystemAudio}
+            available={capabilities.systemAudio}
+          />
           {sources.length === 0 ? (
             <Card>Looking for screens and windows…</Card>
           ) : (
