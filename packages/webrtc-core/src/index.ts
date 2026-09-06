@@ -9,4 +9,5 @@
 export * from './tuning.ts';
 export * from './stats.ts';
 export * from './ice-queue.ts';
+export * from './relay.ts';
 export * from './signaling-client.ts';

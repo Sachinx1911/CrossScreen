@@ -23,9 +23,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "schema": "turbo run schema",
-    "dev:signaling": "pnpm --filter @crossscreen/signaling dev",
-    "dev:web": "pnpm --filter @crossscreen/web dev",
-    "dev:desktop": "pnpm --filter @crossscreen/desktop dev",
+    "dev:signaling": "turbo run dev --filter=@crossscreen/signaling",
+    "dev:web": "turbo run dev --filter=@crossscreen/web",
+    "dev:desktop": "turbo run dev --filter=@crossscreen/desktop",
     "verify:capture": "pnpm --filter @crossscreen/desktop run verify:capture",
     "lint:fix": "turbo run build --output-logs=errors-only && eslint . --fix"
   },

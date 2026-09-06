@@ -8,6 +8,7 @@
   "scripts": {
     "build": "tsc -b tsconfig.main.json && vite build",
     "dev": "pnpm build && electron .",
+    "test": "node --test src/main/*.test.ts",
     "typecheck": "tsc -b tsconfig.main.json --noEmit false --emitDeclarationOnly && tsc -p tsconfig.json --noEmit",
     "verify:capture": "electron scripts/verify-capture.mjs",
     "verify:renderer": "electron scripts/verify-renderer.mjs"

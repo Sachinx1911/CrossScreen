@@ -11,7 +11,7 @@ Cross-network gate still outstanding. **This is the GO/NO-GO gate.**
 | 2. `candidate-pair` in state `succeeded`     | ✅ **locally** — `path=prflx->host`           |
 | 3. Candidate types logged                    | ✅ both ends print a stats line every 2 s     |
 | 4. Forced-relay run proves TURN              | ⬜ needs TURN credentials and two networks    |
-| 5. Ten minutes without freezing              | ⬜ needs the cross-network run                |
+| 5. Ten minutes without freezing              | ✅ **locally** — 11 min, no drop, no freeze   |
 
 Local measurement, 2026-09-05, Windows 11 / Electron 44.2.0:
 
@@ -23,12 +23,80 @@ VP9 negotiated as intended, and resolution held at full 1080p while the frame
 rate floated — which is `degradationPreference: 'maintain-resolution'` doing
 exactly its job.
 
+Local measurement, 2026-09-06, macOS 15.5 / Electron 44.2.0:
+
+```
+transport=direct path=host->host rtt=1ms res=1658x1078 fps=30 codec=VP9 avail=5302kbps
+```
+
+The Retina screen captures at 2940x1912 and is now capped down to 1658x1078 —
+§9's 1920x1080 ceiling, fitted to the display's aspect ratio. Text stayed
+legible in the viewer at that size, which is criterion 1. The soak below was
+measured before the cap existed, at the full 2940x1912.
+
+**The soak, criterion 5.** Eleven minutes of continuous sharing, sampled every
+two seconds — 337 stats lines, and across all of them the resolution never
+moved off `2940x1912`, the transport never left `direct`, the codec stayed VP9,
+and nothing logged a disconnect, a failure or a closed peer. Frame rate ranged
+from 1 to 30 fps and that is the intended behaviour rather than a stall: with
+`maintain-resolution`, a screen nobody is touching has almost nothing to
+encode. The stream was confirmed live at the end by watching the viewer follow
+the desktop onto entirely different content, which is the check a stats line
+alone cannot make — a frozen video with a healthy connection prints exactly the
+same numbers.
+
+This is a loopback result. It retires the "does it hold up over time" question
+for the code itself, but criterion 5 is written against two networks and only a
+cross-network run can settle it there.
+
 **Criteria 1, 2 and 5 must be re-run across two networks before the gate
 passes.** Loopback proves the code is wired correctly; it proves nothing about
 NAT traversal, which is the entire point of the exercise.
 
 ### Bugs this phase has already caught
 
+- **A restarted sharer made a working viewer report failure.** Replacing the
+  viewer's `RTCPeerConnection` on a second offer never closed the first one,
+  and a discarded connection is not inert: its `onconnectionstatechange` fires
+  `failed` and writes that into the same status element the new connection is
+  using. Its stats interval survived too, because `pollStats()` had no guard
+  against being called twice — the sharer's equivalent has one, so this was an
+  oversight on one side rather than a decision. Measured on the Mac: one offer
+  gave 0.94 stats timers, a second gave 1.93, and the viewer read **"Connection
+  failed"** while the video was playing at 2940x1912 and its own stats line
+  said `transport=direct`. Both criteria 1 and 3 are read off exactly those two
+  things, so the bug could fail a passing run — and criterion 4 is what
+  triggers it, since forcing relay means restarting the sharer with the viewer
+  still open. Both ends now close the connection they are replacing, handlers
+  detached first so the close itself delivers nothing.
+- **The 1920x1080 resolution cap was never applied.** Architecture §9 lists it
+  beside `contentHint` and `degradationPreference`; the other two were
+  implemented and this one was not, and `MEDIA_DEFAULTS.maxWidth` and
+  `maxHeight` were read by nothing at all. It hid because the machine it was
+  first measured on has a 1080p display, so the capture came in under the
+  ceiling by itself and the baseline recorded `1920x1080` as though the cap had
+  done it. The Mac gave 2940x1912 — 5.6 megapixels against the 2.1 the contract
+  states — and the pixels that costs are affordable on loopback and precisely
+  the wrong surprise on a phone over mobile data, where they would read as a
+  network problem. Now capped to 1658x1078, aspect ratio kept, text still
+  legible in the viewer.
+- **A stopped tunnel left its URL behind.** `pnpm tunnel` deleted
+  `.tunnel-url` on SIGINT and on the child exiting, which covers Ctrl+C and
+  cloudflared dying, and nothing else. Killed with SIGTERM — an IDE stop
+  button, `kill`, a closing terminal, a process manager taking the tree down —
+  it died before cleanup and left the file pointing at a tunnel that no longer
+  existed. The next `pnpm dev` reads that file at launch, so the desktop app
+  aims at a dead hostname and cannot reach signaling, which is precisely the
+  outcome the code comment there warns about. Found by killing it that way
+  while tidying up after a tunnel run. Now handles SIGTERM and SIGHUP too.
+- **A sharer that restarted came back as a second viewer.** The room chose a
+  role from `#peers.size`, which agrees with "first peer is the host" only
+  until someone reconnects: with the viewer holding the only slot, the
+  returning sharer was labelled `viewer` and the room reported no host at all.
+  Cosmetic today, because nothing in the skeleton reads the role — but the logs
+  are what the gate is judged from, and a log that calls the sharer a viewer
+  costs time at exactly the wrong moment. Role now follows from whether a host
+  is present.
 - **ICE candidates arriving before the answer were thrown away.** Signaling
   carries candidates and the offer/answer over the same channel, and a peer
   starts producing candidates as soon as it has a local description — so they

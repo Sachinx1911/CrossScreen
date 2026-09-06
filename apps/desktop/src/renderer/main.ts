@@ -2,6 +2,7 @@ import {
   IceCandidateQueue,
   SignalingClient,
   formatSnapshot,
+  hasTurnServer,
   readConnectionSnapshot,
   tuneScreenShare,
 } from '@crossscreen/webrtc-core';
@@ -43,6 +44,18 @@ let selfId: string | undefined;
 let viewerId: string | undefined;
 
 async function startSharing(): Promise<void> {
+  // Checked before the capture prompt, not after: asking for the screen and
+  // then failing to connect for a reason known up front wastes the one
+  // interaction the user has to grant. See hasTurnServer.
+  if (forceRelay() && !hasTurnServer(iceServers())) {
+    setStatus('Relay forced, but no TURN server is configured', 'bad');
+    statsEl.textContent =
+      'VITE_FORCE_RELAY=1 is set with no TURN credentials. Run `pnpm turn`, or unset it.\n' +
+      'Forcing the relay without one discards every candidate and the connection fails\n' +
+      'silently — see docs/dev-setup.md.';
+    return;
+  }
+
   shareButton.disabled = true;
   setStatus('Requesting screen…');
 
@@ -119,6 +132,18 @@ async function startSharing(): Promise<void> {
 
 async function offerTo(remoteId: string): Promise<void> {
   if (stream === undefined || signaling === undefined) return;
+
+  // A viewer that reloads leaves and rejoins under a new peer id, so this runs
+  // again for the same screen. The previous connection has nobody on the other
+  // end, but it is not inert: it holds its ICE state open — a relay allocation
+  // once TURN is configured — and its statechange handler still writes 'failed'
+  // over the status of the connection that replaced it.
+  if (pc !== undefined) {
+    pc.onconnectionstatechange = null;
+    pc.onicecandidate = null;
+    pc.close();
+  }
+
   viewerId = remoteId;
   setStatus('Negotiating…');
 

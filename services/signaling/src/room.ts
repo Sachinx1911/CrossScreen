@@ -47,7 +47,12 @@ export class SkeletonRoom {
 
     const peer: Peer = {
       id: randomUUID(),
-      role: this.#peers.size === 0 ? 'host' : 'viewer',
+      // Whether a host is already present, not how many peers there are. Those
+      // agree until someone reconnects: if the host leaves and comes back, the
+      // viewer is holding the only slot, so counting makes the returning sharer
+      // a second 'viewer' and the room reports no host at all. Restarting the
+      // sharer is not an edge case here — exit criterion 4 asks for it by name.
+      role: this.#hasHost() ? 'viewer' : 'host',
       socket,
     };
     this.#peers.set(peer.id, peer);
@@ -71,6 +76,13 @@ export class SkeletonRoom {
 
   get(peerId: string): Peer | undefined {
     return this.#peers.get(peerId);
+  }
+
+  #hasHost(): boolean {
+    for (const peer of this.#peers.values()) {
+      if (peer.role === 'host') return true;
+    }
+    return false;
   }
 
   /** The other peer, if there is one. In a two-peer room this is the target. */

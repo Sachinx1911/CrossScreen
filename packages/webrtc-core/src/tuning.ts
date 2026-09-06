@@ -43,6 +43,51 @@ export async function applyDegradationPreference(sender: RTCRtpSender): Promise<
 }
 
 /**
+ * Cap the captured resolution, never raising it.
+ *
+ * Architecture §9 asks for 1920x1080 alongside the two settings above, and it
+ * was the one of the three that never got applied. That went unnoticed because
+ * the machine it was first measured on has a 1080p display, so the capture came
+ * in under the ceiling on its own and the baseline recorded `1920x1080` as
+ * though the cap had done it.
+ *
+ * A Retina Mac gives 2940x1912 — 5.6 megapixels against the 2.1 the contract
+ * states, so nearly three times the pixels to encode and send. That is affordable
+ * on loopback and is exactly the wrong thing to discover on a phone over mobile
+ * data, where it would look like a network problem rather than a missing
+ * constraint.
+ *
+ * Only `max` is constrained, so a screen already smaller than the ceiling is
+ * left alone — "never upscale", as §9 puts it. The browser fits the frame
+ * inside the box and keeps the aspect ratio, so a 2940x1912 screen becomes
+ * 1661x1080 rather than being squashed to shape.
+ */
+export async function applyResolutionCap(track: MediaStreamTrack): Promise<void> {
+  if (typeof track.applyConstraints !== 'function') return;
+
+  const { width, height } = track.getSettings();
+  if (
+    width !== undefined &&
+    height !== undefined &&
+    width <= MEDIA_DEFAULTS.maxWidth &&
+    height <= MEDIA_DEFAULTS.maxHeight
+  ) {
+    return;
+  }
+
+  try {
+    await track.applyConstraints({
+      width: { max: MEDIA_DEFAULTS.maxWidth },
+      height: { max: MEDIA_DEFAULTS.maxHeight },
+    });
+  } catch {
+    // Reconstraining a display track is not universally supported. Sending the
+    // full-resolution screen is worse than sending a capped one but far better
+    // than sending nothing, so this stays a preference rather than a hard step.
+  }
+}
+
+/**
  * Prefer codecs with screen-content coding tools, keeping H.264 as the
  * universal fallback — it is the only codec every target platform decodes in
  * hardware, Safari and older Android included.
@@ -75,7 +120,13 @@ export function applyCodecPreferences(transceiver: RTCRtpTransceiver): void {
   }
 }
 
-/** Apply every screen-share tuning step to a freshly added video sender. */
+/**
+ * Apply every screen-share tuning step to a freshly added video sender.
+ *
+ * `MEDIA_DEFAULTS.minFps` has no step here on purpose: WebRTC has no minimum
+ * frame rate to set. A floor is what `degradationPreference` produces by
+ * refusing to trade resolution away, not something the encoder can be told.
+ */
 export async function tuneScreenShare(
   track: MediaStreamTrack,
   sender: RTCRtpSender,
@@ -83,5 +134,8 @@ export async function tuneScreenShare(
 ): Promise<void> {
   applyContentHint(track);
   if (transceiver !== undefined) applyCodecPreferences(transceiver);
+  // Before the encoding parameters, so maxFramerate is set against the
+  // resolution that will actually be sent.
+  await applyResolutionCap(track);
   await applyDegradationPreference(sender);
 }

@@ -98,11 +98,20 @@ function cleanup() {
   }
 }
 
-process.on('SIGINT', () => {
-  cleanup();
-  child.kill('SIGINT');
-  process.exit(0);
-});
+// SIGINT is Ctrl+C, the documented way to stop this. SIGTERM and SIGHUP are
+// every other way it actually happens: `kill`, an IDE's stop button, a closing
+// terminal, a process manager shutting the tree down. Without them the script
+// dies before cleanup and leaves .tunnel-url pointing at a tunnel that is gone,
+// which is the exact failure the comment above is about — the next `pnpm dev`
+// reads it, aims the desktop app at a dead hostname, and cannot reach
+// signaling.
+for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+  process.on(signal, () => {
+    cleanup();
+    child.kill(signal === 'SIGINT' ? 'SIGINT' : 'SIGTERM');
+    process.exit(0);
+  });
+}
 
 child.on('exit', (code) => {
   cleanup();

@@ -7,7 +7,7 @@
 Assumes **one developer, part-time (~10–15 hrs/week)**. Estimates are calendar
 time under that constraint and are deliberately conservative.
 
-Two rules that follow from being solo:
+Three rules that follow from being solo, and from the product being free:
 
 1. **Nothing gets self-hosted that a free tier can do.** Operations burden is
    the fastest way to stall a solo project.
@@ -15,6 +15,16 @@ Two rules that follow from being solo:
    for all three desktop OSes — that is why Electron was chosen — but macOS and
    Linux stay marked _untested_ until Phase 3b. This is a testing-scope
    reduction, **not** an architecture change.
+3. **The browser sharer is the way in; the desktop app is the upgrade**
+   ([ADR-0010](adr/0010-browser-sharer-is-the-primary-path.md)). Shipping a
+   desktop app to strangers costs about $320/year in certificates before the
+   first user arrives, and unsigned is not a free alternative — Windows warns,
+   macOS refuses. A browser tab needs none of it and reaches all three desktop
+   OSes in one deploy. Electron is still built and still tested; it is simply
+   distributed when signing exists rather than before.
+
+**What it costs to run, and where free ends:** [`cost-model.md`](cost-model.md).
+**What stands between a build and a user:** [`distribution.md`](distribution.md).
 
 | Phase                                           | Deliverable                                                                                                                                                                      | Estimate | Status  |
 | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------- |

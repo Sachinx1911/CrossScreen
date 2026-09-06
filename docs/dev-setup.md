@@ -123,8 +123,26 @@ Verified so far:
 | Platform                    | Result      | Details                                                                      |
 | --------------------------- | ----------- | ---------------------------------------------------------------------------- |
 | Windows 11, Electron 44.2.0 | ✅ PASS     | Windows Graphics Capture, 1920x1080 @ 30 fps, `contentHint: 'text'` accepted |
-| macOS 13+                   | not yet run | Phase 3b                                                                     |
+| macOS 15.5, Electron 44.2.0 | ✅ PASS     | ScreenCaptureKit, 2940x1912 @ 30 fps, `contentHint: 'text'` accepted         |
 | Linux GNOME/KDE             | not yet run | Phase 3b                                                                     |
+
+`verify:renderer` also passes on macOS: origin `app://bundle`, secure context,
+zero CSP violations.
+
+> **The first macOS run failed for a reason worth knowing.** `pnpm install` did
+> not fetch the Electron runtime despite `electron: true` in `allowBuilds`, so
+> the first `verify:capture` spent its entire 20-second budget downloading
+> Chromium, and `desktopCapturer.getSources()` rejected with
+> `Failed to get sources`. That message is indistinguishable from the missing
+> Screen Recording permission, which is the failure everyone expects on a Mac,
+> so the obvious reading sent us into System Settings to fix something that was
+> never wrong.
+>
+> `pnpm setup` now checks for the runtime and fetches it if it is missing, so
+> this should not happen again. If you meet it anyway — after an install that
+> did not go through `pnpm setup`, say — run `pnpm setup`, and note that
+> `pnpm rebuild electron` is not the fix: it exits silently having done
+> nothing, because pnpm already considers the package built.
 
 ## Running the walking skeleton locally
 
@@ -179,6 +197,11 @@ SIGNALING_PORT=8788 pnpm dev:signaling
 
 remembering to point `VITE_SIGNALING_URL` at the same port.
 
+A port that is not a whole number, or is outside 1–65535, is now refused with
+a `signaling.bad_config` line naming the variable and the value. `8788x` used
+to be read as `8788`, so the server listened somewhere other than where the
+person thought — with `VITE_SIGNALING_URL` still aimed at the port they meant.
+
 ## The Phase 0.5 cross-network test
 
 This is the **GO/NO-GO gate**. Local success proves nothing about NAT traversal.
@@ -208,6 +231,18 @@ tunnel gets a new hostname on every run. The viewer needs no configuration
 either — it falls back to same-origin `/ws`, which works locally and through
 the tunnel alike.
 
+Both claims are verified on macOS, 2026-09-06, with cloudflared 2026.8.3: the
+desktop app logged `[main] signaling override: wss://…/ws` read straight from
+`.tunnel-url`, the viewer loaded over the public HTTPS hostname and reached
+signaling through its own origin with nothing configured, and the media path
+came up at `res=2940x1912 codec=VP9`. Restarting the sharer with the viewer
+left open reconnected cleanly.
+
+That is the whole rig except the two things it cannot stand in for: a second
+network, and TURN. Both ends were on one machine, so `transport` says `direct`
+and the media never went near the tunnel — which is the point, and why this
+run is preparation for the gate rather than part of it.
+
 Leave it running, and in another terminal:
 
 ```bash
@@ -231,6 +266,14 @@ been exercised is a TURN path that does not work. Force it:
 
 - **Viewer:** append `?relay=1` to the URL.
 - **Sharer:** set `VITE_FORCE_RELAY=1` and restart.
+
+Either one without TURN credentials now refuses to start and says so. It used
+to connect and then fail with nothing to go on: forcing the relay discards
+every candidate that is not a relay candidate, so with no TURN server ICE
+gathers nothing at all and gives up. That looks exactly like the genuine
+no-path failure this gate exists to investigate, which makes "TURN is broken"
+the obvious and wrong conclusion — and a typo in one credential produces the
+same silence.
 
 TURN credentials are required, and `pnpm turn` fetches them:
 
@@ -268,16 +311,31 @@ run is a run half wasted.
 
 ## Environment variables
 
-| Variable               | Used by      | Purpose                               |
-| ---------------------- | ------------ | ------------------------------------- |
-| `SIGNALING_PORT`       | signaling    | Listen port (default 8787)            |
-| `SIGNALING_HOST`       | signaling    | Bind address (default 127.0.0.1)      |
-| `LOG_LEVEL`            | signaling    | `debug`, `info`, `warn`, `error`      |
-| `VITE_SIGNALING_URL`   | web, desktop | WebSocket URL of the signaling server |
-| `VITE_TURN_URLS`       | web, desktop | Comma-separated TURN URLs             |
-| `VITE_TURN_USERNAME`   | web, desktop | TURN username                         |
-| `VITE_TURN_CREDENTIAL` | web, desktop | TURN credential                       |
-| `VITE_FORCE_RELAY`     | desktop      | `1` pins ICE to relay only            |
+| Variable                    | Used by        | Purpose                                                |
+| --------------------------- | -------------- | ------------------------------------------------------ |
+| `SIGNALING_PORT`            | signaling      | Listen port (default 8787)                             |
+| `SIGNALING_HOST`            | signaling      | Bind address (default 127.0.0.1)                       |
+| `LOG_LEVEL`                 | signaling      | `debug`, `info`, `warn`, `error`                       |
+| `SIGNALING_TARGET`          | web dev server | Where `/ws` is proxied (default `ws://127.0.0.1:8787`) |
+| `VITE_SIGNALING_URL`        | web, desktop   | WebSocket URL of the signaling server                  |
+| `VITE_TURN_URLS`            | web, desktop   | Comma-separated TURN URLs                              |
+| `VITE_TURN_USERNAME`        | web, desktop   | TURN username                                          |
+| `VITE_TURN_CREDENTIAL`      | web, desktop   | TURN credential                                        |
+| `VITE_FORCE_RELAY`          | desktop        | `1` pins ICE to relay only                             |
+| `VITE_AUTOSTART`            | desktop        | `1` starts sharing without a click                     |
+| `CROSSSCREEN_SIGNALING_URL` | desktop main   | Overrides `.tunnel-url` at launch                      |
+
+> **`VITE_AUTOSTART` shares your screen the moment the app opens.** It exists so
+> a scripted run does not need someone to press a button, and it is why the
+> capture and renderer probes can be automated. Do not leave it set in a
+> `.env.local` you use day to day: a sharer that starts without an explicit
+> action is the one thing this product must never be.
+
+**Changing the port takes two variables, not one.** `SIGNALING_PORT` moves the
+server; the viewer then reaches it either directly through `VITE_SIGNALING_URL`
+or through the dev server's `/ws` proxy, whose target is `SIGNALING_TARGET`.
+Move the port without the one the viewer actually uses and the page loads
+perfectly and never connects.
 
 > **Disclosed shortcut.** Build-time TURN credentials are Phase 0.5 only. Phase 2
 > replaces them with `GET /api/v1/ice-servers` issuing short-lived credentials,
