@@ -141,6 +141,12 @@ Playwright with two browser contexts: create, join, approve, connect, leave.
 Plus the paths that matter most for safety — join rejected, join timed out,
 session expired, host ends mid-session.
 
+> **Verified end to end, 2026-09-06.** Browser sharer to browser viewer:
+> session created, code and link shown, host prompted, approved, video flowing
+> at 960x540 on VP9. Driven with a canvas-backed `MediaStream` in place of a
+> real screen, because the automation sandbox refuses the capture permission —
+> every other part of the path is the real one.
+>
 > **Known gap while this phase is in flight.** The Electron sharer still speaks
 > the walking skeleton's protocol — it connects and starts negotiating, where
 > the server now expects `session.host.attach` with a host token first. It is

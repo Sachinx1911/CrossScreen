@@ -109,6 +109,10 @@ export class SharerSession extends Emitter<SharerEvents> {
     this.#wire(signaling);
 
     await signaling.connect();
+    if (this.#stopped) {
+      signaling.close();
+      throw new Error('cancelled');
+    }
     signaling.send({ type: 'session.host.attach', hostToken: session.hostToken });
 
     // The OS or the browser can end a capture without asking. Treat the track
@@ -164,6 +168,10 @@ export class SharerSession extends Emitter<SharerEvents> {
     });
 
     signaling.on('peer.left', (message) => {
+      // Also clears anyone still waiting. A viewer who closes the tab before
+      // being let in would otherwise leave a prompt on the host's screen for
+      // someone who is no longer there — and the host could then allow them.
+      this.pending.delete(message.participantId);
       this.#closePeer(message.participantId);
       this.emit('viewerLeft', { participantId: message.participantId });
     });

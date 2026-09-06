@@ -80,8 +80,10 @@ export function Share() {
     active.on('viewerJoined', () => {
       setViewers((n) => n + 1);
     });
-    active.on('viewerLeft', () => {
+    active.on('viewerLeft', ({ participantId }) => {
       setViewers((n) => Math.max(0, n - 1));
+      // Someone who leaves while still waiting takes their prompt with them.
+      setPending((current) => current.filter((r) => r.participantId !== participantId));
     });
     active.on('connection', ({ state }) => {
       setConnection(state);
@@ -97,7 +99,10 @@ export function Share() {
     try {
       setSession(await active.start());
       setPhase('sharing');
-    } catch {
+    } catch (err) {
+      // A cancellation is our own doing — the component went away mid-start —
+      // and telling the user their connection failed would be a lie.
+      if (err instanceof Error && err.message === 'cancelled') return;
       setMessage('CrossScreen is unreachable. Check your connection and try again.');
       capture.current.stop();
       setPhase('idle');
