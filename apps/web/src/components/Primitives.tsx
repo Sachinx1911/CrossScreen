@@ -64,9 +64,11 @@ export function StatusDot({ state }: { state: ConnectionState }) {
 /** A message the user is meant to act on, never a stack trace. */
 export function Notice({
   tone = 'info',
+  id,
   children,
 }: {
   tone?: 'info' | 'warning' | 'error';
+  id?: string;
   children: ReactNode;
 }) {
   const tones = {
@@ -77,6 +79,7 @@ export function Notice({
 
   return (
     <p
+      id={id}
       className={`rounded-lg px-4 py-3 text-sm ${tones[tone]}`}
       role={tone === 'error' ? 'alert' : undefined}
     >

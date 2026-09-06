@@ -1,0 +1,17 @@
+{
+  "name": "@crossscreen/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "End-to-end tests for the whole join flow",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@crossscreen/protocol": "workspace:*",
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^22.20.1",
+    "typescript": "^5.9.3"
+  }
+}

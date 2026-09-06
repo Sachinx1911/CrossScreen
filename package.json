@@ -18,6 +18,7 @@
     "build": "turbo run build",
     "dev": "turbo run dev",
     "test": "turbo run test",
+    "test:e2e": "pnpm --filter @crossscreen/e2e test:e2e",
     "lint": "turbo run build --output-logs=errors-only && eslint .",
     "typecheck": "turbo run typecheck",
     "format": "prettier --write .",

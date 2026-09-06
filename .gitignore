@@ -69,3 +69,8 @@ scratch/
 
 # Written by `pnpm tunnel`; the hostname changes every run.
 .tunnel-url
+
+# Playwright
+tests/e2e/test-results/
+tests/e2e/playwright-report/
+tests/e2e/blob-report/

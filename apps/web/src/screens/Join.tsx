@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { extractJoinToken, isValidJoinCode, normaliseJoinCode } from '@crossscreen/protocol';
 
@@ -24,8 +24,16 @@ export function Join({
   const [problem, setProblem] = useState<string | undefined>();
 
   // Arrived by link: there is nothing to ask, so do not ask it.
+  //
+  // In an effect rather than during render. Calling `onJoin` inline updated a
+  // parent while this component was rendering, which React warns about and is
+  // genuinely wrong — the two components would be describing different states
+  // in the same pass.
+  useEffect(() => {
+    if (token !== undefined) onJoin({ joinToken: token });
+  }, [token, onJoin]);
+
   if (token !== undefined) {
-    onJoin({ joinToken: token });
     return <Card className="mx-auto max-w-md">Joining…</Card>;
   }
 
@@ -76,10 +84,13 @@ export function Join({
           />
         </div>
 
+        {/* The id goes on the Notice itself. Wrapping it in a <p> nested one
+            paragraph inside another, which is invalid HTML — caught by the
+            end-to-end run, not by any type or lint check. */}
         {problem !== undefined && (
-          <p id="code-problem">
-            <Notice tone="error">{problem}</Notice>
-          </p>
+          <Notice tone="error" id="code-problem">
+            {problem}
+          </Notice>
         )}
 
         <Button type="submit" className="w-full">
