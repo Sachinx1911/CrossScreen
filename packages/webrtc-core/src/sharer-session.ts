@@ -5,7 +5,7 @@ import { Emitter } from './events.ts';
 import { IceCandidateQueue } from './ice-queue.ts';
 import { SignalingClient } from './signaling-client.ts';
 import { formatSnapshot, readConnectionSnapshot, type ConnectionSnapshot } from './stats.ts';
-import { tuneScreenShare } from './tuning.ts';
+import { tuneScreenShare, type QualityMode } from './tuning.ts';
 
 /**
  * Sharing a screen, end to end, without knowing what is drawing the screen.
@@ -27,6 +27,7 @@ export interface SharerEvents {
   viewerJoined: { participantId: string };
   /** What is being shared was swapped mid-session. */
   streamChanged: { stream: MediaStream };
+  quality: { mode: QualityMode };
   viewerLeft: { participantId: string };
   connection: { state: ConnectionState };
   stats: ConnectionSnapshot;
@@ -88,6 +89,13 @@ export class SharerSession extends Emitter<SharerEvents> {
   #statsTimer: ReturnType<typeof setInterval> | undefined;
   #session: CreatedSession | undefined;
   #stopped = false;
+  /**
+   * Text by default, because the product's stated purpose is showing someone a
+   * spreadsheet and having them able to read it (architecture §9). Sharing a
+   * playing video is the case where that choice is wrong, which is why it is a
+   * choice rather than a constant.
+   */
+  #quality: QualityMode = 'text';
 
   readonly #deps: SharerDependencies;
 
@@ -131,6 +139,30 @@ export class SharerSession extends Emitter<SharerEvents> {
     return session;
   }
 
+  get quality(): QualityMode {
+    return this.#quality;
+  }
+
+  /**
+   * Switch between sharp text and smooth motion, live.
+   *
+   * Encoder parameters can be changed on a running sender, so this needs no
+   * new offer and causes no interruption — the picture simply starts behaving
+   * differently. Anyone watching stays connected.
+   */
+  async setQuality(mode: QualityMode): Promise<void> {
+    this.#quality = mode;
+
+    const track = this.#deps.stream.getVideoTracks()[0];
+    for (const { pc } of this.#peers.values()) {
+      const sender = pc.getSenders().find((s) => s.track?.kind === 'video');
+      if (sender === undefined || track === undefined) continue;
+      await tuneScreenShare(track, sender, undefined, mode);
+    }
+
+    this.emit('quality', { mode });
+  }
+
   /**
    * Swap what is being shared, without interrupting anyone watching.
    *
@@ -158,8 +190,8 @@ export class SharerSession extends Emitter<SharerEvents> {
       if (sender === undefined) continue;
       await sender.replaceTrack(track);
       // The new track needs the same treatment as the old one: a fresh track
-      // carries none of the previous tuning.
-      await tuneScreenShare(track, sender);
+      // carries none of the previous tuning, including the quality mode.
+      await tuneScreenShare(track, sender, undefined, this.#quality);
     }
 
     // The OS can end this one too, and the old listener is attached to a track
@@ -285,7 +317,7 @@ export class SharerSession extends Emitter<SharerEvents> {
 
     const sender = pc.addTrack(track, this.#deps.stream);
     const transceiver = pc.getTransceivers().find((t) => t.sender === sender);
-    await tuneScreenShare(track, sender, transceiver);
+    await tuneScreenShare(track, sender, transceiver, this.#quality);
 
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);

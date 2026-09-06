@@ -13,12 +13,29 @@ import { MEDIA_DEFAULTS } from '@crossscreen/protocol';
  */
 
 /**
- * Tell the encoder this track is detailed rather than fast-moving. Chromium
- * uses this to enable screen-content coding paths in VP9 and AV1.
+ * What the person sharing actually wants.
+ *
+ * These are not two settings of a dial; they are opposite answers to the same
+ * question, and neither is right in general.
+ *
+ * `text` holds resolution and lets the frame rate fall. A spreadsheet stays
+ * readable when the network tightens, which is the product's stated purpose.
+ * Point it at a playing video and the frame rate collapses — the picture is
+ * sharp and looks frozen, which is exactly how it was reported.
+ *
+ * `motion` holds the frame rate and lets resolution fall. Video stays smooth
+ * and text goes soft.
  */
-export function applyContentHint(track: MediaStreamTrack): void {
+export type QualityMode = 'text' | 'motion';
+
+/**
+ * Tell the encoder what kind of content this is. Chromium uses `detail`/`text`
+ * to enable screen-content coding paths in VP9 and AV1, and `motion` to
+ * prioritise temporal smoothness.
+ */
+export function applyContentHint(track: MediaStreamTrack, mode: QualityMode = 'text'): void {
   if ('contentHint' in track) {
-    track.contentHint = MEDIA_DEFAULTS.contentHint;
+    track.contentHint = mode === 'text' ? MEDIA_DEFAULTS.contentHint : 'motion';
   }
 }
 
@@ -30,9 +47,13 @@ export function applyContentHint(track: MediaStreamTrack): void {
  * a spreadsheet is unreadable. Blurry text is a failed session; legible text
  * at 8 fps is a usable one.
  */
-export async function applyDegradationPreference(sender: RTCRtpSender): Promise<void> {
+export async function applyDegradationPreference(
+  sender: RTCRtpSender,
+  mode: QualityMode = 'text',
+): Promise<void> {
   const params = sender.getParameters();
-  params.degradationPreference = MEDIA_DEFAULTS.degradationPreference;
+  params.degradationPreference =
+    mode === 'text' ? MEDIA_DEFAULTS.degradationPreference : 'maintain-framerate';
 
   const [encoding] = params.encodings ?? [];
   if (encoding !== undefined) {
@@ -131,11 +152,12 @@ export async function tuneScreenShare(
   track: MediaStreamTrack,
   sender: RTCRtpSender,
   transceiver?: RTCRtpTransceiver,
+  mode: QualityMode = 'text',
 ): Promise<void> {
-  applyContentHint(track);
+  applyContentHint(track, mode);
   if (transceiver !== undefined) applyCodecPreferences(transceiver);
   // Before the encoding parameters, so maxFramerate is set against the
   // resolution that will actually be sent.
   await applyResolutionCap(track);
-  await applyDegradationPreference(sender);
+  await applyDegradationPreference(sender, mode);
 }

@@ -2,10 +2,22 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { CaptureCancelled, ElectronCapture, type CaptureSource } from '@crossscreen/capture';
 import type { ConnectionState, JoinRequestInfo } from '@crossscreen/protocol';
-import { ApiClient, SharerSession, type CreatedSession } from '@crossscreen/webrtc-core';
+import {
+  ApiClient,
+  SharerSession,
+  type CreatedSession,
+  type QualityMode,
+} from '@crossscreen/webrtc-core';
 
 import { SourcePicker } from './SourcePicker.tsx';
-import { ApprovalPrompt, Button, Card, CopyField, StatusDot } from './components.tsx';
+import {
+  ApprovalPrompt,
+  Button,
+  Card,
+  CopyField,
+  QualityToggle,
+  StatusDot,
+} from './components.tsx';
 import { apiBaseUrl, signalingUrl } from './config.ts';
 
 type Phase = 'choosing' | 'starting' | 'sharing' | 'switching' | 'stopped';
@@ -26,6 +38,7 @@ export function App() {
   const [viewers, setViewers] = useState(0);
   const [connection, setConnection] = useState<ConnectionState>('connecting');
   const [message, setMessage] = useState<string | undefined>();
+  const [quality, setQuality] = useState<QualityMode>('text');
 
   const capture = useRef(new ElectronCapture());
   const sharer = useRef<SharerSession | undefined>(undefined);
@@ -225,6 +238,18 @@ export function App() {
             <p className="text-xs text-[var(--text-muted)]">
               Anyone with this code or link can ask to watch. You still decide.
             </p>
+          </Card>
+
+          {/* Takes effect immediately, with no interruption to anyone
+              watching — encoder parameters can be set on a live sender. */}
+          <Card>
+            <QualityToggle
+              mode={quality}
+              onChange={(mode) => {
+                setQuality(mode);
+                void sharer.current?.setQuality(mode);
+              }}
+            />
           </Card>
 
           <div className="flex gap-3">

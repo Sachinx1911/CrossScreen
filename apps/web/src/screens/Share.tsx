@@ -2,11 +2,17 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { BrowserCapture, CaptureCancelled, CaptureRefused } from '@crossscreen/capture';
 import type { ConnectionState, JoinRequestInfo } from '@crossscreen/protocol';
-import { ApiClient, SharerSession, type CreatedSession } from '@crossscreen/webrtc-core';
+import {
+  ApiClient,
+  SharerSession,
+  type CreatedSession,
+  type QualityMode,
+} from '@crossscreen/webrtc-core';
 
 import { ApprovalPrompt } from '../components/ApprovalPrompt.tsx';
 import { CopyField } from '../components/CopyField.tsx';
 import { Button, Card, Notice, StatusDot } from '../components/Primitives.tsx';
+import { QualityToggle } from '../components/QualityToggle.tsx';
 import { SafetyNotice, useSafetyNotice } from '../components/SafetyNotice.tsx';
 import { apiBaseUrl, signalingUrl } from '../config.ts';
 import { navigate } from '../router.ts';
@@ -27,6 +33,7 @@ export function Share() {
   const [viewers, setViewers] = useState(0);
   const [connection, setConnection] = useState<ConnectionState>('connecting');
   const [message, setMessage] = useState<string | undefined>();
+  const [quality, setQuality] = useState<QualityMode>('text');
 
   const sharer = useRef<SharerSession | undefined>(undefined);
   const capture = useRef(new BrowserCapture());
@@ -224,6 +231,18 @@ export function Share() {
             <p className="text-xs text-[var(--text-muted)]">
               Anyone with this code or link can ask to watch. You still decide.
             </p>
+          </Card>
+
+          {/* Changing this takes effect immediately, with no interruption to
+              anyone watching — encoder parameters can be set on a live sender. */}
+          <Card>
+            <QualityToggle
+              mode={quality}
+              onChange={(mode) => {
+                setQuality(mode);
+                void sharer.current?.setQuality(mode);
+              }}
+            />
           </Card>
 
           <video

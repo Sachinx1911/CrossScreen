@@ -111,6 +111,56 @@ export function CopyField({
   );
 }
 
+/**
+ * Sharp text, or smooth motion. See apps/web QualityToggle for the reasoning:
+ * these are opposite answers to the same question, not points on a dial.
+ */
+export function QualityToggle({
+  mode,
+  onChange,
+}: {
+  mode: 'text' | 'motion';
+  onChange: (mode: 'text' | 'motion') => void;
+}) {
+  const options = [
+    { value: 'text' as const, label: 'Sharp text', hint: 'Best for documents and code' },
+    { value: 'motion' as const, label: 'Smooth video', hint: 'Best for anything moving' },
+  ];
+
+  return (
+    <fieldset>
+      <legend className="mb-2 text-xs font-medium tracking-wide text-[var(--text-muted)] uppercase">
+        Optimise for
+      </legend>
+      <div className="grid grid-cols-2 gap-2">
+        {options.map((option) => (
+          <label
+            key={option.value}
+            className={`cursor-pointer rounded-lg border p-3 text-sm transition ${
+              mode === option.value
+                ? 'border-brand-500 bg-brand-50 dark:bg-brand-500/10'
+                : 'border-[var(--border-subtle)] hover:bg-[var(--surface-sunken)]'
+            }`}
+          >
+            <input
+              type="radio"
+              name="quality"
+              value={option.value}
+              checked={mode === option.value}
+              onChange={() => {
+                onChange(option.value);
+              }}
+              className="sr-only"
+            />
+            <span className="block font-medium">{option.label}</span>
+            <span className="block text-xs text-[var(--text-muted)]">{option.hint}</span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
 /** See apps/web ApprovalPrompt — the same decision, the same reasoning. */
 export function ApprovalPrompt({
   request,

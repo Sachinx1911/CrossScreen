@@ -189,6 +189,36 @@ test('switching what is shared does not interrupt anyone watching', async ({ bro
   await guest.close();
 });
 
+test('switching to smooth video does not interrupt anyone watching', async ({ browser }) => {
+  // The control exists because sharing a playing video with the text setting
+  // makes it look frozen — sharp frames arriving too slowly. Changing it must
+  // not cost the viewer their session, or nobody will change it mid-call.
+  const host = await browser.newContext();
+  const guest = await browser.newContext();
+  const sharer = await host.newPage();
+  const viewer = await guest.newPage();
+  failOnConsoleErrors(viewer, consoleErrors);
+
+  const { link } = await startSharing(sharer);
+  await viewer.goto(new URL(link).pathname);
+  await sharer.getByRole('button', { name: 'Allow' }).click();
+  await expect(viewer.locator('video')).toBeVisible();
+
+  await expect(sharer.getByText('Sharp text')).toBeVisible();
+  await sharer.getByText('Smooth video').click();
+
+  const before = await viewer.locator('video').evaluate((el: HTMLVideoElement) => el.currentTime);
+
+  await expect(sharer.getByText('1 person is watching')).toBeVisible();
+  await expect(viewer.getByText(/ended|declined|unreachable/i)).toHaveCount(0);
+  await expect
+    .poll(async () => viewer.locator('video').evaluate((el: HTMLVideoElement) => el.currentTime))
+    .toBeGreaterThan(before);
+
+  await host.close();
+  await guest.close();
+});
+
 test('a rejected viewer is told, and never receives a stream', async ({ browser }) => {
   const host = await browser.newContext();
   const guest = await browser.newContext();
