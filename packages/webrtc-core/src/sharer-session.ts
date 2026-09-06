@@ -284,6 +284,16 @@ export class SharerSession extends Emitter<SharerEvents> {
     signaling.on('error', (message) => {
       this.emit('error', { message: message.userMessage });
     });
+
+    signaling.onClose(() => {
+      // Sessions live in the signaling service's memory (ADR-0005), so if it
+      // goes away this one is gone with it. Reconnecting is Phase 2's problem;
+      // continuing to display a dead code is a correctness problem now.
+      this.emit('ended', {
+        reason: 'The connection to CrossScreen was lost. Start a new session to share again.',
+      });
+      this.stop();
+    });
   }
 
   async #offerTo(participantId: string): Promise<void> {

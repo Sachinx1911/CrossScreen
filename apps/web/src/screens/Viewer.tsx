@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ConnectionState } from '@crossscreen/protocol';
 import { ApiClient, ViewerSession, type ViewerPhase } from '@crossscreen/webrtc-core';
 
+import { useFullscreen } from '../components/Fullscreen.tsx';
 import { Button, Card, Notice, StatusDot } from '../components/Primitives.tsx';
 import { apiBaseUrl, forceRelay, signalingUrl } from '../config.ts';
 import { navigate } from '../router.ts';
@@ -22,7 +23,9 @@ export function Viewer({ joinCode, joinToken }: { joinCode?: string; joinToken?:
   const [stats, setStats] = useState<string | undefined>();
 
   const video = useRef<HTMLVideoElement | null>(null);
+  const stage = useRef<HTMLDivElement | null>(null);
   const session = useRef<ViewerSession | undefined>(undefined);
+  const fullscreen = useFullscreen(stage, video);
 
   /**
    * Held in state rather than attached the moment it arrives.
@@ -79,10 +82,30 @@ export function Viewer({ joinCode, joinToken }: { joinCode?: string; joinToken?:
 
   if (phase === 'watching') {
     return (
-      <div className="space-y-3">
-        <div className="flex items-center justify-between gap-4">
+      <div
+        ref={stage}
+        className={
+          fullscreen.isFullscreen ? 'flex h-screen w-screen flex-col bg-black' : 'space-y-3'
+        }
+      >
+        <div
+          className={`flex items-center justify-between gap-4 ${
+            // In fullscreen the bar sits over the picture rather than above
+            // it, so the video keeps the whole display.
+            fullscreen.isFullscreen
+              ? 'absolute inset-x-0 top-0 z-10 bg-black/60 p-3 text-white'
+              : ''
+          }`}
+        >
           <StatusDot state={connection} />
-          {stats !== undefined && <span className="text-xs text-[var(--text-muted)]">{stats}</span>}
+          <div className="flex items-center gap-3">
+            {stats !== undefined && <span className="text-xs opacity-70">{stats}</span>}
+            {fullscreen.supported && (
+              <Button variant="secondary" onClick={fullscreen.toggle}>
+                {fullscreen.isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+              </Button>
+            )}
+          </div>
         </div>
 
         <video
@@ -90,22 +113,30 @@ export function Viewer({ joinCode, joinToken }: { joinCode?: string; joinToken?:
           autoPlay
           playsInline
           muted
+          // Double-click is what people try first, and it costs one line.
+          onDoubleClick={fullscreen.toggle}
           // `contain`, never `cover`: cropping someone's screen would hide the
           // part they are pointing at.
-          className="max-h-[75vh] w-full rounded-lg bg-black object-contain"
+          className={
+            fullscreen.isFullscreen
+              ? 'h-full w-full bg-black object-contain'
+              : 'max-h-[75vh] w-full rounded-lg bg-black object-contain'
+          }
         />
 
-        <div className="flex justify-end">
-          <Button
-            variant="secondary"
-            onClick={() => {
-              session.current?.stop();
-              navigate('/');
-            }}
-          >
-            Leave
-          </Button>
-        </div>
+        {!fullscreen.isFullscreen && (
+          <div className="flex justify-end">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                session.current?.stop();
+                navigate('/');
+              }}
+            >
+              Leave
+            </Button>
+          </div>
+        )}
       </div>
     );
   }

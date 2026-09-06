@@ -219,6 +219,51 @@ test('switching to smooth video does not interrupt anyone watching', async ({ br
   await guest.close();
 });
 
+test('the viewer can go fullscreen and come back', async ({ browser }) => {
+  // Someone watching is looking at content laid out for a whole display, now
+  // inside a window inside another display. Every pixel of chrome around it
+  // costs legibility, which is the one thing this cannot afford to lose.
+  const host = await browser.newContext();
+  const guest = await browser.newContext();
+  const sharer = await host.newPage();
+  const viewer = await guest.newPage();
+  failOnConsoleErrors(viewer, consoleErrors);
+
+  const { link } = await startSharing(sharer);
+  await viewer.goto(new URL(link).pathname);
+  await sharer.getByRole('button', { name: 'Allow' }).click();
+  await expect(viewer.locator('video')).toBeVisible();
+
+  // The headless shell does not always report fullscreen as available, and a
+  // button that is correctly hidden is not a failure to report.
+  const available = await viewer.evaluate(() => document.fullscreenEnabled);
+  test.skip(!available, 'this browser build reports no fullscreen support');
+
+  await viewer.getByRole('button', { name: 'Fullscreen' }).click();
+  await expect(viewer.getByRole('button', { name: 'Exit fullscreen' })).toBeVisible();
+  await expect
+    .poll(async () => viewer.evaluate(() => document.fullscreenElement !== null))
+    .toBe(true);
+
+  // The status has to stay reachable: a viewer who cannot see whether the
+  // connection is alive, or get out, is stuck.
+  await expect(viewer.getByText('Connected')).toBeVisible();
+
+  const before = await viewer.locator('video').evaluate((el: HTMLVideoElement) => el.currentTime);
+
+  await viewer.getByRole('button', { name: 'Exit fullscreen' }).click();
+  await expect(viewer.getByRole('button', { name: 'Fullscreen' })).toBeVisible();
+
+  // Nothing about the session changed — fullscreen is presentation only.
+  await expect(sharer.getByText('1 person is watching')).toBeVisible();
+  await expect
+    .poll(async () => viewer.locator('video').evaluate((el: HTMLVideoElement) => el.currentTime))
+    .toBeGreaterThan(before);
+
+  await host.close();
+  await guest.close();
+});
+
 test('a rejected viewer is told, and never receives a stream', async ({ browser }) => {
   const host = await browser.newContext();
   const guest = await browser.newContext();

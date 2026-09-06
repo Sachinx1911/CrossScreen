@@ -155,6 +155,14 @@ export class ViewerSession extends Emitter<ViewerEvents> {
       this.stop();
     });
 
+    signaling.onClose(() => {
+      this.emit('phase', {
+        phase: 'ended',
+        message: 'The connection to CrossScreen was lost.',
+      });
+      this.stop();
+    });
+
     signaling.on('error', (message) => {
       this.emit('error', { message: message.userMessage });
       // A join that cannot proceed is a dead end. Leaving the viewer on a

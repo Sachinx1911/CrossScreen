@@ -14,6 +14,8 @@ import {
  */
 export class SignalingClient {
   #socket: WebSocket | undefined;
+  #closedByUs = false;
+  #onClose: (() => void) | undefined;
   readonly #handlers = new Map<string, Set<(m: ServerMessage) => void>>();
 
   readonly #url: string;
@@ -29,6 +31,14 @@ export class SignalingClient {
 
       socket.onopen = (): void => {
         resolve();
+      };
+
+      socket.onclose = (): void => {
+        // A socket that closes on its own means the service went away. Without
+        // this the sharer sits there showing a join code that resolves to
+        // nothing, and the person trying to use it is told the session does
+        // not exist — with neither end able to work out why.
+        if (!this.#closedByUs) this.#onClose?.();
       };
       socket.onerror = (): void => {
         reject(new Error(`Could not reach signaling at ${this.#url}`));
@@ -57,6 +67,11 @@ export class SignalingClient {
     return () => set.delete(handler as (m: ServerMessage) => void);
   }
 
+  /** Called when the connection drops on its own, never when we close it. */
+  onClose(handler: () => void): void {
+    this.#onClose = handler;
+  }
+
   send(message: ClientMessage): void {
     if (this.#socket?.readyState !== WebSocket.OPEN) {
       console.warn('[signaling] not connected; dropping', message.type);
@@ -66,6 +81,7 @@ export class SignalingClient {
   }
 
   close(): void {
+    this.#closedByUs = true;
     this.#socket?.close();
     this.#socket = undefined;
   }
