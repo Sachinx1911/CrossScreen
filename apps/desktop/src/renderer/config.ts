@@ -21,3 +21,14 @@ export function signalingUrl(): string {
 export function apiBaseUrl(): string {
   return fromQuery('api') ?? env['VITE_API_URL'] ?? 'http://127.0.0.1:8788';
 }
+
+/**
+ * Pins ICE to relay only. A build-time flag rather than a query parameter
+ * here — unlike the web app, this window is not reached by navigating to a
+ * fresh URL, so there is no link to append `?relay=1` to. Set
+ * `VITE_FORCE_RELAY=1` and restart. Each session refuses to start rather than
+ * fail silently if no TURN server is configured.
+ */
+export function forceRelay(): boolean {
+  return env['VITE_FORCE_RELAY'] === '1';
+}

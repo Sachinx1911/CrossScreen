@@ -6,6 +6,7 @@ import {
   ApiClient,
   SharerSession,
   recordSharedSession,
+  FORCE_RELAY_REQUIRES_TURN,
   type CreatedSession,
   type QualityMode,
 } from '@crossscreen/webrtc-core';
@@ -16,7 +17,7 @@ import { CopyField } from '../components/CopyField.tsx';
 import { Button, Card, Notice, StatusDot } from '../components/Primitives.tsx';
 import { QualityToggle } from '../components/QualityToggle.tsx';
 import { SafetyNotice, useSafetyNotice } from '../components/SafetyNotice.tsx';
-import { apiBaseUrl, signalingUrl } from '../config.ts';
+import { apiBaseUrl, forceRelay, signalingUrl } from '../config.ts';
 import { navigate } from '../router.ts';
 
 type Phase = 'idle' | 'starting' | 'sharing' | 'stopped';
@@ -84,6 +85,7 @@ export function Share() {
       api: new ApiClient(apiBaseUrl()),
       signalingUrl: signalingUrl(),
       stream,
+      forceRelay: forceRelay(),
     });
     sharer.current = active;
 
@@ -123,7 +125,9 @@ export function Share() {
       // have no way to know whether it is still being shared.
       capture.current.stop();
       setMessage(
-        'CrossScreen is unreachable, so the screen share was stopped. Nothing was shared. Try again once you are connected.',
+        err instanceof Error && err.message === FORCE_RELAY_REQUIRES_TURN
+          ? err.message
+          : 'CrossScreen is unreachable, so the screen share was stopped. Nothing was shared. Try again once you are connected.',
       );
       setPhase('idle');
     }

@@ -497,3 +497,24 @@ test('a code that is not six digits is caught before anything is sent', async ({
     page.getByText('A session code is six digits. Check it and try again.'),
   ).toBeVisible();
 });
+
+test('forcing relay with no TURN configured refuses to start, in plain language', async ({
+  page,
+}) => {
+  // This suite's signaling/api servers carry no TURN_URLS (see
+  // playwright.config.ts), the ordinary state of a fresh clone. `?relay=1`
+  // used to mean the sharer would try anyway and gather nothing at all —
+  // indistinguishable from a genuine no-path failure. It now refuses up
+  // front and says why, matching what ViewerSession already did.
+  failOnConsoleErrors(page, consoleErrors);
+  await stubScreenCapture(page);
+  await skipSafetyNotice(page);
+  await page.goto('/share?relay=1');
+
+  await page.getByRole('button', { name: 'Choose a screen' }).click();
+
+  await expect(
+    page.getByText('TURN is required to force the relay path, and none is configured.'),
+  ).toBeVisible();
+  await expect(page.getByText('You are sharing your screen')).toHaveCount(0);
+});

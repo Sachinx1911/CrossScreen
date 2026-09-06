@@ -3,6 +3,7 @@ import type { ConnectionState, JoinRequestInfo } from '@crossscreen/protocol';
 import type { ApiClient, CreatedSession } from './api-client.ts';
 import { Emitter } from './events.ts';
 import { IceCandidateQueue } from './ice-queue.ts';
+import { FORCE_RELAY_REQUIRES_TURN, hasTurnServer } from './relay.ts';
 import { SignalingClient } from './signaling-client.ts';
 import { formatSnapshot, readConnectionSnapshot, type ConnectionSnapshot } from './stats.ts';
 import { tuneScreenShare, type QualityMode } from './tuning.ts';
@@ -44,6 +45,8 @@ export interface SharerDependencies {
    * Mutable, because `replaceStream` swaps it mid-session.
    */
   stream: MediaStream;
+  /** Pins ICE to relay, to prove the TURN path independently of P2P. */
+  forceRelay?: boolean;
 }
 
 /**
@@ -113,6 +116,13 @@ export class SharerSession extends Emitter<SharerEvents> {
     // start" rather than as a connection that never completes for reasons
     // nobody can see.
     this.#iceServers = await this.#deps.api.iceServers();
+
+    // Same failure `ViewerSession` guards against: forcing relay with no TURN
+    // server gathers nothing at all, which looks exactly like the genuine
+    // no-path failure this mode exists to investigate.
+    if (this.#deps.forceRelay === true && !hasTurnServer(this.#iceServers)) {
+      throw new Error(FORCE_RELAY_REQUIRES_TURN);
+    }
 
     const session = await this.#deps.api.createSession();
     this.#session = session;
@@ -311,7 +321,10 @@ export class SharerSession extends Emitter<SharerEvents> {
     const signaling = this.#signaling;
     if (signaling === undefined) return;
 
-    const pc = new RTCPeerConnection({ iceServers: this.#iceServers });
+    const pc = new RTCPeerConnection({
+      iceServers: this.#iceServers,
+      ...(this.#deps.forceRelay === true ? { iceTransportPolicy: 'relay' as const } : {}),
+    });
     const ice = new IceCandidateQueue(pc);
     this.#peers.set(participantId, { pc, ice });
 

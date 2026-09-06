@@ -3,6 +3,7 @@ import type { ConnectionState } from '@crossscreen/protocol';
 import type { ApiClient } from './api-client.ts';
 import { Emitter } from './events.ts';
 import { IceCandidateQueue } from './ice-queue.ts';
+import { FORCE_RELAY_REQUIRES_TURN, hasTurnServer } from './relay.ts';
 import { qualityFrom, userFacingState } from './sharer-session.ts';
 import { SignalingClient } from './signaling-client.ts';
 import { formatSnapshot, readConnectionSnapshot, type ConnectionSnapshot } from './stats.ts';
@@ -73,6 +74,15 @@ export class ViewerSession extends Emitter<ViewerEvents> {
     }
 
     if (this.#stopped) return;
+
+    // `iceTransportPolicy: 'relay'` discards every non-relay candidate. With
+    // no TURN server there is nothing left to gather, and ICE completes
+    // having found no path at all — indistinguishable from the genuine
+    // no-path failure this mode exists to investigate. Caught here instead.
+    if (this.#deps.forceRelay === true && !hasTurnServer(this.#iceServers)) {
+      this.emit('phase', { phase: 'failed', message: FORCE_RELAY_REQUIRES_TURN });
+      return;
+    }
 
     const signaling = new SignalingClient(this.#deps.signalingUrl);
     this.#signaling = signaling;

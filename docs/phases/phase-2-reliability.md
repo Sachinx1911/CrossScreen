@@ -43,6 +43,20 @@ which means it silently rots. With it, every test run can cover both paths.
 This is also how the "added latency via TURN" figure in architecture §9 gets
 measured honestly.
 
+> **Done, 2026-09-07.** `?relay=1` (browser, both apps) and `VITE_FORCE_RELAY=1`
+> (desktop, both apps) now pin every peer connection to relay-only, and each
+> session refuses to start with a plain-language message when no TURN server is
+> configured, rather than gathering nothing and failing silently. `hasTurnServer`
+> already existed, fully unit-tested, with a doc comment claiming both sessions
+> checked it — neither did. `dev-setup.md` had documented the refusal as already
+> working too. Both were ahead of the code; the e2e suite now proves the real
+> behaviour rather than the intended one.
+>
+> **2.1 (short-lived TURN credentials) is not yet done** — `/api/v1/ice-servers`
+> still returns whatever static `TURN_URLS`/`TURN_USERNAME`/`TURN_CREDENTIAL` are
+> in `services/api`'s environment, the Phase 0.5 arrangement. `pnpm turn` remains
+> the manual stand-in for local testing.
+
 ### 2.3 — ICE restart and reconnection
 
 The cases that actually occur, in the order they occur:

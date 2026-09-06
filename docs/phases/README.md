@@ -25,7 +25,7 @@ Phases 4–7 get their full breakdown at the start of the preceding phase.
 | 0 — Foundation         | [phase-0.md](phase-0.md)                                       | ~1 wk    | ✅ **Done** — 2026-09-05                                |
 | 0.5 — Walking skeleton | [phase-0.5-walking-skeleton.md](phase-0.5-walking-skeleton.md) | 1–2 wk   | ✅ **Passed** — criterion 4 (relay) deferred to Phase 2 |
 | 1 — MVP core           | [phase-1-mvp-core.md](phase-1-mvp-core.md)                     | 8–10 wk  | 🔨 **In progress**                                      |
-| 2 — Reliability        | [phase-2-reliability.md](phase-2-reliability.md)               | 4–5 wk   | Planned                                                 |
+| 2 — Reliability        | [phase-2-reliability.md](phase-2-reliability.md)               | 4–5 wk   | 🔨 **In progress**                                      |
 | 3a — Production        | [phase-3a-production.md](phase-3a-production.md)               | 3–4 wk   | Planned                                                 |
 | 3b — macOS + Linux     | [phase-3b-macos-linux.md](phase-3b-macos-linux.md)             | 2–3 wk   | Planned                                                 |
 | 4 — Android sharing    | [phase-4-android.md](phase-4-android.md)                       | 6–8 wk   | Outlined                                                |

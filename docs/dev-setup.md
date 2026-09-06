@@ -321,16 +321,22 @@ NAT traversal, which is the entire reason this gate exists.
 P2P succeeding is not proof that TURN works, and a TURN path that has never
 been exercised is a TURN path that does not work. Force it:
 
-- **Viewer:** append `?relay=1` to the URL.
-- **Sharer:** set `VITE_FORCE_RELAY=1` and restart.
+- **Browser (share or join):** append `?relay=1` to the URL — `/share?relay=1`
+  or `/j/<token>?relay=1`. No rebuild needed, same reason a fresh tab needs
+  none for anything else.
+- **Desktop (share or join):** set `VITE_FORCE_RELAY=1` and restart. A build-time
+  flag here rather than a query parameter, because this window is never
+  reached by navigating to a fresh URL.
 
-Either one without TURN credentials now refuses to start and says so. It used
-to connect and then fail with nothing to go on: forcing the relay discards
-every candidate that is not a relay candidate, so with no TURN server ICE
-gathers nothing at all and gives up. That looks exactly like the genuine
-no-path failure this gate exists to investigate, which makes "TURN is broken"
-the obvious and wrong conclusion — and a typo in one credential produces the
-same silence.
+All four now refuse to start and say so rather than connecting and failing
+with nothing to go on: forcing the relay discards every candidate that is not
+a relay candidate, so with no TURN server ICE gathers nothing at all and gives
+up. That looks exactly like the genuine no-path failure this gate exists to
+investigate, which makes "TURN is broken" the obvious and wrong conclusion —
+and a typo in one credential produces the same silence. (`packages/webrtc-core`
+had carried the check — `hasTurnServer`, fully unit-tested — for a while
+without either session ever calling it; fixed 2026-09-07, and now proven by an
+end-to-end test rather than only a unit one.)
 
 TURN credentials are required, and `pnpm turn` fetches them:
 

@@ -7,6 +7,7 @@ import {
   SharerSession,
   recordSharedSession,
   readRecentSessions,
+  FORCE_RELAY_REQUIRES_TURN,
   type CreatedSession,
   type QualityMode,
 } from '@crossscreen/webrtc-core';
@@ -24,7 +25,7 @@ import {
   QualityToggle,
   StatusDot,
 } from './components.tsx';
-import { apiBaseUrl, signalingUrl } from './config.ts';
+import { apiBaseUrl, forceRelay, signalingUrl } from './config.ts';
 
 type Mode = 'share' | 'join' | 'settings';
 type Phase = 'choosing' | 'starting' | 'sharing' | 'switching' | 'stopped';
@@ -101,6 +102,7 @@ export function App() {
       api: new ApiClient(apiBaseUrl()),
       signalingUrl: signalingUrl(),
       stream,
+      forceRelay: forceRelay(),
     });
     sharer.current = active;
 
@@ -132,7 +134,11 @@ export function App() {
       setPhase('sharing');
     } catch (err) {
       if (err instanceof Error && err.message === 'cancelled') return;
-      setMessage('CrossScreen is unreachable. Check your connection and try again.');
+      setMessage(
+        err instanceof Error && err.message === FORCE_RELAY_REQUIRES_TURN
+          ? err.message
+          : 'CrossScreen is unreachable. Check your connection and try again.',
+      );
       capture.current.stop();
       setPhase('choosing');
     }

@@ -13,6 +13,15 @@
  * start rather than leaving that to be worked out from a silent failure.
  */
 
+/**
+ * The message both sessions throw or emit when asked to force relay with no
+ * TURN server available — one string, so a sharer and a viewer hitting the
+ * same misconfiguration say exactly the same thing, and so a caller can
+ * recognise this specific failure rather than reporting it as "unreachable".
+ */
+export const FORCE_RELAY_REQUIRES_TURN =
+  'TURN is required to force the relay path, and none is configured.';
+
 /** Whether any of these servers can actually relay, as opposed to just STUN. */
 export function hasTurnServer(servers: readonly RTCIceServer[]): boolean {
   return servers.some((server) => {

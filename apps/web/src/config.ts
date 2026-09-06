@@ -24,7 +24,9 @@ export function apiBaseUrl(): string {
 /**
  * Pins ICE to relay only, which is how the TURN path is proved independently
  * of P2P — exit criterion 4 of the Phase 0.5 gate. A query parameter rather
- * than a build-time flag so it needs no rebuild to try.
+ * than a build-time flag so it needs no rebuild to try — `/share?relay=1` and
+ * `/j/<token>?relay=1` both read this, and each session refuses to start
+ * rather than fail silently if no TURN server is configured.
  */
 export function forceRelay(): boolean {
   return new URLSearchParams(location.search).get('relay') === '1';

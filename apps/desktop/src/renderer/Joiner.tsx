@@ -9,7 +9,7 @@ import {
 import { ApiClient, ViewerSession, type ViewerPhase } from '@crossscreen/webrtc-core';
 
 import { Button, Card, StatusDot } from './components.tsx';
-import { apiBaseUrl, signalingUrl } from './config.ts';
+import { apiBaseUrl, forceRelay, signalingUrl } from './config.ts';
 
 type Stage = 'entering-code' | ViewerPhase;
 
@@ -59,6 +59,7 @@ export function Joiner({ onBack }: { onBack: () => void }) {
     const viewer = new ViewerSession({
       api: new ApiClient(apiBaseUrl()),
       signalingUrl: signalingUrl(),
+      forceRelay: forceRelay(),
       ...(pasted === null ? { joinCode: joinCode ?? '' } : { joinToken: pasted }),
     });
     session.current = viewer;
