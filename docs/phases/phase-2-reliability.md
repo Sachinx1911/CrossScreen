@@ -87,6 +87,27 @@ to ask for a new code.** Rejoining is a failure of this phase.
 Reconnection needs a session-recovery token so the returning peer proves it is
 the same participant without a second approval round.
 
+> **Transport-level reconnection landed 2026-09-07.** `SignalingClient` now
+> retries a dropped socket on an exponential schedule with jitter — half a
+> second doubling to ten, giving up after a minute, which is set by the
+> server's own idle sweep rather than picked. The schedule is a pure,
+> injectable `ReconnectSchedule` with unit tests, per this phase's risk
+> mitigation: reconnection decisions belong behind something testable rather
+> than spread across UI timers.
+>
+> Both sessions now report `reconnecting` instead of ending, which is the
+> correct answer for the common case — **media is peer-to-peer and never went
+> through that socket**, so a picture stays live while signaling is away. The
+> session is only declared lost once retrying gives up, by which point the
+> server really has swept it.
+>
+> **Still to do for the rest of §2.3:** the recovery token itself, so a
+> returning viewer resumes without a second approval; a server-side grace
+> period, since a host's socket dropping currently ends the session for
+> everyone immediately; and ICE restart, so the _media_ path recovers from a
+> network change rather than only the signaling one. `rtc.restart` exists in
+> the protocol and is relayed, but nothing sends it yet.
+
 ### 2.4 — Stats pipeline
 
 Clients already send `stats.report`. This phase lands them in

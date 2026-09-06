@@ -306,10 +306,18 @@ export class SharerSession extends Emitter<SharerEvents> {
       this.emit('error', { message: message.userMessage });
     });
 
+    // A dropped signaling socket does not stop the screen being watched:
+    // media is peer-to-peer and never went through it. So this reports the
+    // state and lets the client retry, rather than ending a session whose
+    // picture is still moving.
+    signaling.onState((state) => {
+      if (state === 'reconnecting') this.emit('connection', { state: 'reconnecting' });
+    });
+
     signaling.onClose(() => {
-      // Sessions live in the signaling service's memory (ADR-0005), so if it
-      // goes away this one is gone with it. Reconnecting is Phase 2's problem;
-      // continuing to display a dead code is a correctness problem now.
+      // Only once retrying has been given up on. Sessions live in the
+      // signaling service's memory (ADR-0005), so by this point the server has
+      // swept this one and the code on screen resolves to nothing.
       this.emit('ended', {
         reason: 'The connection to CrossScreen was lost. Start a new session to share again.',
       });

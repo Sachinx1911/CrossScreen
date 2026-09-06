@@ -165,7 +165,16 @@ export class ViewerSession extends Emitter<ViewerEvents> {
       this.stop();
     });
 
+    // The picture keeps moving while signaling is away — media is
+    // peer-to-peer and never touched that socket. Say "reconnecting" and let
+    // the client retry rather than ending a session that is still playing.
+    signaling.onState((state) => {
+      if (state === 'reconnecting') this.emit('connection', { state: 'reconnecting' });
+    });
+
     signaling.onClose(() => {
+      // Only once retrying has been given up on, by which point the server has
+      // swept the session this viewer was watching.
       this.emit('phase', {
         phase: 'ended',
         message: 'The connection to CrossScreen was lost.',
