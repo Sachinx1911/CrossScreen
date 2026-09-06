@@ -9,6 +9,8 @@ import {
   type QualityMode,
 } from '@crossscreen/webrtc-core';
 
+import { Joiner } from './Joiner.tsx';
+import { SafetyNotice, useSafetyNotice } from './SafetyNotice.tsx';
 import { SourcePicker } from './SourcePicker.tsx';
 import {
   ApprovalPrompt,
@@ -20,6 +22,7 @@ import {
 } from './components.tsx';
 import { apiBaseUrl, signalingUrl } from './config.ts';
 
+type Mode = 'share' | 'join';
 type Phase = 'choosing' | 'starting' | 'sharing' | 'switching' | 'stopped';
 
 /**
@@ -31,8 +34,10 @@ type Phase = 'choosing' | 'starting' | 'sharing' | 'switching' | 'stopped';
  * approval ordering cannot drift between the two shells.
  */
 export function App() {
+  const [mode, setMode] = useState<Mode>('share');
   const [phase, setPhase] = useState<Phase>('choosing');
   const [sources, setSources] = useState<CaptureSource[]>([]);
+  const safety = useSafetyNotice();
   const [session, setSession] = useState<CreatedSession | undefined>();
   const [pending, setPending] = useState<JoinRequestInfo[]>([]);
   const [viewers, setViewers] = useState(0);
@@ -152,11 +157,43 @@ export function App() {
     else sharer.current?.reject(participantId);
   }
 
+  if (mode === 'join') {
+    return (
+      <div className="mx-auto max-w-3xl space-y-5 p-6">
+        <h1 className="text-xl font-semibold">CrossScreen</h1>
+        <Joiner
+          onBack={() => {
+            setMode('share');
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-3xl space-y-5 p-6">
       <h1 className="text-xl font-semibold">
         {phase === 'sharing' ? 'You are sharing your screen' : 'CrossScreen'}
       </h1>
+
+      {/* Switching away mid-share would leave a live session with nobody
+          watching this window, so the switch only appears before one starts —
+          but before the safety notice too, or someone who only ever wants to
+          watch could never reach Join at all. */}
+      {phase === 'choosing' && (
+        <p className="text-sm text-[var(--text-muted)]">
+          Want to watch someone else's screen instead?{' '}
+          <button
+            type="button"
+            onClick={() => {
+              setMode('join');
+            }}
+            className="text-brand-500 underline"
+          >
+            Join a session
+          </button>
+        </p>
+      )}
 
       {message !== undefined && (
         <Card className="border-status-bad/40">
@@ -164,7 +201,14 @@ export function App() {
         </Card>
       )}
 
-      {(phase === 'choosing' || phase === 'switching') && (
+      {phase === 'choosing' && safety.needed ? (
+        <Card>
+          <h2 className="mb-4 text-lg font-semibold">Before you share</h2>
+          <SafetyNotice onAcknowledge={safety.acknowledge} />
+        </Card>
+      ) : null}
+
+      {((phase === 'choosing' && !safety.needed) || phase === 'switching') && (
         <>
           <p className="text-sm text-[var(--text-muted)]">
             {phase === 'switching'

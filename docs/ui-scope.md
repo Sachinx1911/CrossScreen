@@ -38,9 +38,9 @@ yet — and so the deferred screens are not forgotten.
 | Viewer (video, connection state, quality, fullscreen, leave)   | `apps/web`     | 1                          |
 | Desktop: Share (source picker + preview + start)               | `apps/desktop` | 1                          |
 | Desktop: active-sharing state (code, link, viewer count, stop) | `apps/desktop` | 1                          |
-| Desktop: Join                                                  | `apps/desktop` | 1                          |
-| **Host approval prompt**                                       | `apps/desktop` | 1 — **new, not in mockup** |
-| **First-share safety notice**                                  | `apps/desktop` | 1 — **new, not in mockup** |
+| Desktop: Join                                                  | `apps/desktop` | 1 — ✅ built               |
+| **Host approval prompt**                                       | `apps/desktop` | 1 — **new, not in mockup**, ✅ built |
+| **First-share safety notice**                                  | `apps/desktop` | 1 — **new, not in mockup**, ✅ built |
 | Sessions (recent, localStorage)                                | both           | 1                          |
 | Settings                                                       | both           | 1 (minimal)                |
 | Android: Share / Join                                          | `apps/android` | 4                          |
