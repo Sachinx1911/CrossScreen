@@ -1,26 +1,27 @@
 import { createServer } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 
-import { HEARTBEAT, parseClientEnvelope, type ClientMessage } from '@crossscreen/protocol';
+import { HEARTBEAT, parseClientEnvelope } from '@crossscreen/protocol';
 
 import { config } from './config.ts';
+import { handleDisconnect, handleMessage, sendError, type Connection } from './handlers.ts';
 import { log } from './log.ts';
-import { SkeletonRoom, type Peer } from './room.ts';
+import { InMemorySessionStore, startSweeper } from './session-store.ts';
+import { send } from './handlers.ts';
 
 /**
- * Phase 0.5 signaling server.
+ * The signaling service.
  *
- * Its only job is to carry offer, answer and ICE candidates between two peers
- * so that the media path can be proven end to end. It never sees media, and
- * it never inspects SDP — the payload is relayed verbatim.
+ * It carries offer, answer and ICE between two peers and decides who may
+ * receive them. It never sees media, and it never inspects SDP.
  */
 
-const room = new SkeletonRoom();
+const store = new InMemorySessionStore();
 
 const http = createServer((req, res) => {
   if (req.url === '/healthz') {
     res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ ok: true, peers: room.size }));
+    res.end(JSON.stringify({ ok: true, sessions: store.size }));
     return;
   }
   res.writeHead(404).end();
@@ -29,13 +30,11 @@ const http = createServer((req, res) => {
 const wss = new WebSocketServer({ server: http });
 
 wss.on('connection', (socket: WebSocket, req) => {
-  const peer = room.add(socket);
-
-  if (peer === null) {
-    log.warn('connection.refused', { reason: 'room_full', remote: req.socket.remoteAddress });
-    socket.close(1013, 'Room full');
-    return;
-  }
+  const connection: Connection = {
+    socket,
+    userAgent: req.headers['user-agent'],
+    remoteAddress: req.socket.remoteAddress,
+  };
 
   let alive = true;
   socket.on('pong', () => {
@@ -44,7 +43,7 @@ wss.on('connection', (socket: WebSocket, req) => {
 
   const heartbeat = setInterval(() => {
     if (!alive) {
-      log.warn('peer.timeout', { peerId: peer.id });
+      log.warn('peer.timeout', { participantId: connection.participantId });
       socket.terminate();
       return;
     }
@@ -53,77 +52,57 @@ wss.on('connection', (socket: WebSocket, req) => {
   }, HEARTBEAT.intervalMs);
 
   socket.on('message', (data: Buffer) => {
-    handleMessage(peer, data);
+    // Every inbound frame is untrusted. parseClientEnvelope applies the size
+    // cap and the protocol-version check before anything else looks at it.
+    const parsed = parseClientEnvelope(data);
+    if (!parsed.ok) {
+      log.warn('message.rejected', { code: parsed.code, detail: parsed.detail });
+      sendError(socket, parsed.code);
+      return;
+    }
+    void handleMessage(connection, parsed.value.payload, parsed.value.id, store).catch(
+      (err: unknown) => {
+        // A handler throwing must not take the socket down with it, and must
+        // not leave the client waiting for a reply that is never coming.
+        log.error('handler.failed', {
+          type: parsed.value.payload.type,
+          message: err instanceof Error ? err.message : String(err),
+        });
+        sendError(socket, 'INTERNAL_ERROR', parsed.value.id);
+      },
+    );
   });
 
   socket.on('close', (code, reason) => {
     clearInterval(heartbeat);
-    room.remove(peer.id);
-    log.info('connection.closed', { peerId: peer.id, code, reason: reason.toString() });
+    handleDisconnect(connection, store);
+    log.info('connection.closed', {
+      participantId: connection.participantId,
+      code,
+      reason: reason.toString(),
+    });
   });
 
   socket.on('error', (err: Error) => {
-    log.error('socket.error', { peerId: peer.id, message: err.message });
+    log.error('socket.error', { participantId: connection.participantId, message: err.message });
   });
 });
 
-function handleMessage(peer: Peer, data: Buffer): void {
-  // Every inbound frame is untrusted. parseClientEnvelope applies the size cap
-  // and the protocol-version check before anything else looks at it.
-  const parsed = parseClientEnvelope(data);
-  if (!parsed.ok) {
-    log.warn('message.rejected', { peerId: peer.id, code: parsed.code, detail: parsed.detail });
-    room.sendError(peer, parsed.code);
-    return;
+// Sessions have to expire on a timer as well as on disconnect: a host whose
+// laptop slept, or a session nobody ever joined, produces no event to react to.
+startSweeper(store, (session) => {
+  for (const viewer of session.viewers) {
+    send(viewer.socket, {
+      type: 'session.ended',
+      reason: session.endedReason === 'expired' ? 'expired' : 'idle_timeout',
+    });
   }
-
-  const { id, payload } = parsed.value;
-
-  switch (payload.type) {
-    case 'ping':
-      room.send(peer, { type: 'pong' }, id);
-      return;
-
-    case 'rtc.offer':
-    case 'rtc.answer':
-    case 'rtc.ice':
-    case 'rtc.restart':
-      relay(peer, payload, id);
-      return;
-
-    case 'stats.report':
-      // Not persisted in this phase; logged so the walking-skeleton run can be
-      // read back afterwards. Phase 2 lands these in connection_stats.
-      log.info('stats.report', { peerId: peer.id, ...payload });
-      return;
-
-    default:
-      // Session and approval messages have no meaning in a hardcoded room.
-      log.warn('message.unsupported', { peerId: peer.id, type: payload.type });
-      room.sendError(peer, 'MALFORMED_MESSAGE', id);
-  }
-}
-
-/**
- * Forward a negotiation message to the other peer, replacing the client's
- * `to` with a server-asserted `from`. The client cannot forge its identity,
- * and the SDP itself is passed through untouched.
- */
-function relay(
-  peer: Peer,
-  payload: Extract<ClientMessage, { type: `rtc.${string}` }>,
-  inReplyTo: string,
-): void {
-  const target = room.other(peer.id);
-  if (target === undefined) {
-    room.sendError(peer, 'SESSION_NOT_FOUND', inReplyTo);
-    return;
-  }
-
-  const { to: _discarded, ...rest } = payload;
-  room.send(target, { ...rest, from: peer.id });
-  log.debug('relay', { type: payload.type, from: peer.id, to: target.id });
-}
+  send(session.hostSocket, {
+    type: 'session.ended',
+    reason: session.endedReason === 'expired' ? 'expired' : 'idle_timeout',
+  });
+  log.info('session.expired', { sessionId: session.sessionId, reason: session.endedReason });
+});
 
 function onListenError(err: NodeJS.ErrnoException): void {
   if (err.code === 'EADDRINUSE') {
@@ -144,11 +123,7 @@ http.on('error', onListenError);
 wss.on('error', onListenError);
 
 http.listen(config.port, config.host, () => {
-  log.info('signaling.listening', {
-    host: config.host,
-    port: config.port,
-    room: config.skeletonRoomId,
-  });
+  log.info('signaling.listening', { host: config.host, port: config.port });
 });
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {

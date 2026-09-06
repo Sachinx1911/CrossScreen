@@ -21,10 +21,26 @@ const here = dirname(fileURLToPath(import.meta.url));
 const configUrl = pathToFileURL(join(here, 'config.ts')).href;
 const LOAD_CONFIG = `import('${configUrl}').then((m) => console.log(m.config.port));`;
 
-function loadWith(port: string | undefined): { code: number; output: string } {
-  const env = { ...process.env };
-  if (port === undefined) delete env['SIGNALING_PORT'];
-  else env['SIGNALING_PORT'] = port;
+const VALID_SECRET = 'a-signaling-test-secret-long-enough-ok';
+
+/**
+ * Built by filtering rather than by deleting keys: `undefined` means "unset
+ * this variable", and the child process must not inherit it.
+ */
+function loadWith(
+  port: string | undefined,
+  overrides: Record<string, string | undefined> = {},
+): { code: number; output: string } {
+  const base: Record<string, string | undefined> = {
+    ...process.env,
+    SESSION_SECRET: VALID_SECRET,
+    LOG_LEVEL: 'error',
+    SIGNALING_PORT: port,
+    ...overrides,
+  };
+  const env = Object.fromEntries(
+    Object.entries(base).filter(([, value]) => value !== undefined),
+  ) as Record<string, string>;
 
   try {
     const output = execFileSync(process.execPath, ['-e', LOAD_CONFIG], {
@@ -70,6 +86,24 @@ test('a port outside the range is refused before http.listen sees it', () => {
     assert.equal(code, 1, `${value} should be refused`);
     assert.match(output, /must be between 1 and 65535/);
   }
+});
+
+test('a missing session secret refuses to start', () => {
+  // The secret verifies host tokens and must match the API service's
+  // (ADR-0011). A development default would work locally, survive review, and
+  // arrive in production as a publicly known signing key.
+  const { code, output } = loadWith(undefined, { SESSION_SECRET: undefined });
+  assert.equal(code, 1, 'the service must not start without a signing secret');
+  assert.match(output, /signaling\.bad_config/);
+  assert.match(output, /SESSION_SECRET/);
+});
+
+test('a short session secret is refused, and never echoed back', () => {
+  const secret = 'short-but-recognisable';
+  const { code, output } = loadWith(undefined, { SESSION_SECRET: secret });
+  assert.equal(code, 1);
+  assert.match(output, /at least 32 characters/);
+  assert.ok(!output.includes(secret), 'the secret appeared in the refusal');
 });
 
 test('the refusal names the variable and the value', () => {

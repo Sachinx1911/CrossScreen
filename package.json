@@ -24,6 +24,7 @@
     "format:check": "prettier --check .",
     "schema": "turbo run schema",
     "dev:signaling": "turbo run dev --filter=@crossscreen/signaling",
+    "dev:api": "pnpm --filter @crossscreen/api dev",
     "dev:web": "turbo run dev --filter=@crossscreen/web",
     "dev:desktop": "turbo run dev --filter=@crossscreen/desktop",
     "verify:capture": "pnpm --filter @crossscreen/desktop run verify:capture",

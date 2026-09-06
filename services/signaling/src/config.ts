@@ -45,16 +45,30 @@ function intFromEnv(name: string, fallback: number, min: number, max: number): n
   return parsed;
 }
 
+/** Required, never defaulted. See `sessionSecret` below. */
+function secretFromEnv(name: string, minLength: number): string {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === '') {
+    reject(name, '', 'is required — generate one with: openssl rand -base64 32');
+  }
+  if (raw.trim().length < minLength) {
+    reject(name, '(hidden)', `must be at least ${minLength} characters`);
+  }
+  return raw.trim();
+}
+
 export const config = {
   // 0 is excluded deliberately: it means "any free port", and a server whose
   // port nothing else can predict is not useful to point a client at.
   port: intFromEnv('SIGNALING_PORT', 8787, 1, 65535),
   host: process.env['SIGNALING_HOST'] ?? '127.0.0.1',
   /**
-   * Phase 0.5 only: every connection lands in one room. Phase 1 replaces this
-   * with real sessions, join codes and host approval.
+   * Verifies host tokens, and must be identical to the API service's — the two
+   * share a secret instead of a database (ADR-0011). Refused rather than
+   * defaulted: a development fallback would work locally, survive review, and
+   * arrive in production as a publicly known signing key.
    */
-  skeletonRoomId: 'skeleton',
+  sessionSecret: secretFromEnv('SESSION_SECRET', 32),
   // LOG_LEVEL is deliberately absent. It is read in log.ts instead, because
   // this module logs its own rejections and cannot import a logger that
   // imports it back. A `logLevel` here would be read by nothing and changing
