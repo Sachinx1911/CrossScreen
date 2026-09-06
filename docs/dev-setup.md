@@ -202,10 +202,9 @@ WHERE occurred_at > now() - interval '7 days'
 GROUP BY transport;
 ```
 
-> **Not yet verified against a real database.** The schema and the writer are
-> written and typechecked but have never been run — Docker was not available on
-> the machine they were built on. Run the two commands above before relying on
-> anything landing in a table.
+Verified against PostgreSQL 17 on 2026-09-06: migrations apply, all four
+tables are created, and a full share-and-join run lands session events and
+connection statistics that the query above can actually read.
 
 ## Freeing a stuck port
 

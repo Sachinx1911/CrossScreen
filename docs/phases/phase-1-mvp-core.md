@@ -85,13 +85,16 @@ plan visible.
 **Privacy:** no screen content, no audio, and no full IP addresses — store a
 truncated or hashed IP for rate limiting and nothing more (architecture §42).
 
-> **Slice 1.4 written, not yet verified.** `packages/db` records session
-> events, connection statistics and failed code attempts. The no-op path — what
-> runs without `DATABASE_URL` — is tested and is what every current run uses.
-> **The PostgreSQL path has never been executed**: no Docker daemon was
-> available on the machine it was built on. The schema, the batching writer and
-> the migration runner are typechecked and unrun, and that is a different thing
-> from working. Verify before Phase 2 depends on the numbers.
+> **Slice 1.4 done and verified, 2026-09-06.** `packages/db` records session
+> events, connection statistics and failed code attempts, against PostgreSQL 17.
+> A full share-and-join run produces `created`, `host_attached`,
+> `viewer_requested`, `viewer_approved` and a stream of connection statistics,
+> and the direct-versus-relay query Phase 2 depends on returns a real answer.
+>
+> Running it found a defect that typechecking could not: `detail` was written
+> with `JSON.stringify` into a `jsonb` column, so it arrived as a JSON _string_
+> and `detail->>'key'` returned nothing. The rows were present and answered no
+> questions — the worst version of that bug to have.
 
 ### 1.5 — `packages/webrtc-core`
 
