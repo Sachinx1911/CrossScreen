@@ -283,6 +283,73 @@ test('a viewer cannot approve itself', async () => {
   await settle();
 });
 
+test('a second viewer is turned away once one is already approved', async () => {
+  // Phase 1 is one sharer, one viewer (architecture §11). The host is never
+  // shown a prompt for a request that could not be approved anyway.
+  const { host, code } = await attachedHost();
+
+  const first = await Client.open();
+  first.send({ type: 'session.viewer.request', joinCode: code });
+  const pending = await host.next('session.viewer.pending');
+  if (pending.payload.type !== 'session.viewer.pending') assert.fail('wrong type');
+  host.send({
+    type: 'session.viewer.approve',
+    participantId: pending.payload.request.participantId,
+  });
+  await first.next('session.viewer.approved');
+
+  const second = await Client.open();
+  second.send({ type: 'session.viewer.request', joinCode: code });
+
+  const err = await second.next('error');
+  if (err.payload.type !== 'error') assert.fail('wrong type');
+  assert.equal(err.payload.code, 'SESSION_FULL');
+  await host.never('session.viewer.pending');
+
+  first.close();
+  second.close();
+  host.close();
+  await settle();
+});
+
+test('a second pending viewer cannot be approved once the first one is', async () => {
+  // The narrower race the request gate alone does not cover: two viewers ask
+  // before either is decided, so both reach `pending`, and the host approves
+  // the first and then — a stray double-click, or a client replaying the
+  // message — tries to approve the second too.
+  const { host, code } = await attachedHost();
+
+  const first = await Client.open();
+  first.send({ type: 'session.viewer.request', joinCode: code });
+  const firstPending = await host.next('session.viewer.pending');
+  if (firstPending.payload.type !== 'session.viewer.pending') assert.fail('wrong type');
+
+  const second = await Client.open();
+  second.send({ type: 'session.viewer.request', joinCode: code });
+  const secondPending = await host.next('session.viewer.pending');
+  if (secondPending.payload.type !== 'session.viewer.pending') assert.fail('wrong type');
+
+  host.send({
+    type: 'session.viewer.approve',
+    participantId: firstPending.payload.request.participantId,
+  });
+  await first.next('session.viewer.approved');
+
+  host.send({
+    type: 'session.viewer.approve',
+    participantId: secondPending.payload.request.participantId,
+  });
+  const err = await host.next('error');
+  if (err.payload.type !== 'error') assert.fail('wrong type');
+  assert.equal(err.payload.code, 'SESSION_FULL');
+  await second.never('session.viewer.approved');
+
+  host.close();
+  first.close();
+  second.close();
+  await settle();
+});
+
 test('a code with no live session answers the same as a guessed one', async () => {
   // Both must be SESSION_NOT_FOUND, so enumerating codes reveals nothing about
   // which sessions exist.

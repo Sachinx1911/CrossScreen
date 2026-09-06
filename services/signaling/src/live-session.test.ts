@@ -90,6 +90,25 @@ test('approving twice is not a way to re-open a rejected viewer', () => {
   assert.equal(session.approve(viewer.id), undefined, 'already approved is not pending');
 });
 
+test('a second viewer cannot be approved while one already is (Phase 1: one at a time)', () => {
+  const session = new LiveSession(claims(), fakeSocket());
+  const add = () =>
+    session.addViewer({
+      deviceLabel: 'Android · Chrome',
+      approximateLocation: undefined,
+      joinedVia: 'code',
+      socket: fakeSocket(),
+    });
+
+  const first = add();
+  const second = add();
+  assert.ok(session.approve(first.id));
+
+  assert.equal(session.approve(second.id), undefined, 'already full');
+  assert.equal(second.state, 'pending', 'left exactly as it was, not silently rejected');
+  assert.equal(session.approvedViewers.length, 1);
+});
+
 test('an approved viewer cannot reach a pending one', () => {
   const session = new LiveSession(claims(), fakeSocket());
   const add = () =>

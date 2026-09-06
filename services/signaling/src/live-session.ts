@@ -117,8 +117,17 @@ export class LiveSession {
     return this.#viewers.get(id);
   }
 
-  /** Approve a pending viewer, issuing its participant token. */
+  /**
+   * Approve a pending viewer, issuing its participant token.
+   *
+   * Refuses a second approval while one is already active — Phase 1 is one
+   * sharer, one viewer (architecture §11). The request gate is what a real
+   * second visitor meets; this is the same rule enforced again for the
+   * narrower case of two requests that were both already pending when the
+   * host approved the first one.
+   */
   approve(id: string, now = Date.now()): Viewer | undefined {
+    if (this.approvedViewers.length > 0) return undefined;
     const viewer = this.#viewers.get(id);
     // Only a pending viewer can be approved. An already-approved or rejected
     // one falling through here is what would make approval re-openable.

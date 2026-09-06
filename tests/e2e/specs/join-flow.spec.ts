@@ -322,6 +322,41 @@ test('a rejected viewer is told, and never receives a stream', async ({ browser 
   await guest.close();
 });
 
+test('a second viewer is told the session is full, without bothering the host', async ({
+  browser,
+}) => {
+  // Phase 1 is one sharer, one viewer (architecture §11). No client code
+  // change was needed for this to read correctly — the same generic
+  // non-retryable-error handling that already covers a rejected or timed-out
+  // join covers SESSION_FULL too.
+  const host = await browser.newContext();
+  const firstGuest = await browser.newContext();
+  const secondGuest = await browser.newContext();
+  const sharer = await host.newPage();
+  const firstViewer = await firstGuest.newPage();
+  const secondViewer = await secondGuest.newPage();
+  failOnConsoleErrors(firstViewer, consoleErrors);
+  failOnConsoleErrors(secondViewer, consoleErrors);
+
+  const { link } = await startSharing(sharer);
+  await firstViewer.goto(new URL(link).pathname);
+  await sharer.getByRole('button', { name: 'Allow' }).click();
+  await expect(firstViewer.locator('video')).toBeVisible();
+
+  await secondViewer.goto(new URL(link).pathname);
+
+  await expect(secondViewer.getByText('This session is already full.')).toBeVisible();
+  await expect(secondViewer.locator('video')).toHaveCount(0);
+  // The host is never shown a prompt it could not act on.
+  await expect(sharer.getByRole('alertdialog')).toHaveCount(0);
+  // And the first viewer is completely undisturbed by the second one's visit.
+  await expect(firstViewer.locator('video')).toBeVisible();
+
+  await host.close();
+  await firstGuest.close();
+  await secondGuest.close();
+});
+
 test('a viewer nobody answers is told, and stops waiting on their own', async ({ browser }) => {
   // JOIN_REQUEST_TIMEOUT_MS is turned down to 4s for this suite (see
   // playwright.config.ts) — a host who never responds is the ordinary case,

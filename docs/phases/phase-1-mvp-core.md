@@ -66,6 +66,12 @@ Replaces the Phase 0.5 hardcoded room.
   token and only then opens the relay between those two peers.
 - Presence, heartbeats, peer joined and left, session ended.
 - Pending requests auto-reject after `SESSION_TIMEOUTS.joinRequestMs`.
+- **One approved viewer at a time.** A second visitor is told `SESSION_FULL`
+  at the request itself — the host is never shown a prompt for someone who
+  could not be approved anyway. Enforced again in `approve()` for the
+  narrower race of two requests that were both already pending. This is the
+  phase goal ("one sharer, one viewer") made to actually hold; Phase 5's mesh
+  is what lifts it.
 
 ### 1.4 — PostgreSQL · `services/api`
 

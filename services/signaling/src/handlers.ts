@@ -141,6 +141,15 @@ function viewerRequest(
     return;
   }
 
+  // Phase 1 is one sharer, one viewer (architecture §11) — a second stranger
+  // is turned away before the host is ever bothered with a prompt for a
+  // request that could not be approved anyway. Revisit for Phase 5's mesh.
+  if (session.approvedViewers.length > 0) {
+    sendError(connection.socket, 'SESSION_FULL', id);
+    log.warn('viewer.request_refused', { reason: 'full', sessionId: session.sessionId });
+    return;
+  }
+
   const viewer = session.addViewer({
     deviceLabel: deviceLabelFrom(connection.userAgent),
     approximateLocation: undefined,
@@ -215,7 +224,15 @@ function approve(
 
   const viewer = session.approve(participantId);
   if (viewer === undefined) {
-    sendError(connection.socket, 'SESSION_NOT_FOUND', id);
+    // Two hosts clicking Allow on two prompts in the same instant is the only
+    // realistic way to reach this: the request gate above already turns away
+    // anyone who asks after someone is watching, so "full" is distinguished
+    // from "gone" only for a host who genuinely hit both at once.
+    sendError(
+      connection.socket,
+      session.approvedViewers.length > 0 ? 'SESSION_FULL' : 'SESSION_NOT_FOUND',
+      id,
+    );
     return;
   }
 
