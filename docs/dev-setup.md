@@ -231,34 +231,33 @@ Verified against PostgreSQL 17 on 2026-09-06: migrations apply, all four
 tables are created, and a full share-and-join run lands session events and
 connection statistics that the query above can actually read.
 
-## Freeing a stuck port
+## Stale servers
 
-The signaling server refuses to start if something already holds its port, and
-reports it rather than crashing:
+`pnpm dev` frees its own ports first, so this should not need attention. It is
+worth knowing why it does.
 
-```
-{"level":"error","event":"signaling.port_in_use","port":8787,...}
-```
+Ctrl+C does not reliably take Vite down with it. A stale server keeps its port,
+and the next `pnpm dev` quietly moves to the following free number — 5174, then 5175. The page at 5173 still loads, still looks correct, and is an hour-old
+build. That happened, and cost an hour of looking for a bug in code that was
+never running.
 
-A stray `node --watch` left over from an earlier session is the usual cause.
-On Windows:
-
-```powershell
-Get-NetTCPConnection -LocalPort 8787 -State Listen | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
-```
-
-Or sidestep it entirely:
+To free them by hand:
 
 ```bash
-SIGNALING_PORT=8788 pnpm dev:signaling
+pnpm dev:free-ports
 ```
 
-remembering to point `VITE_SIGNALING_URL` at the same port.
+It names each process it stops. No output means nothing was stale.
 
-A port that is not a whole number, or is outside 1–65535, is now refused with
-a `signaling.bad_config` line naming the variable and the value. `8788x` used
-to be read as `8788`, so the server listened somewhere other than where the
-person thought — with `VITE_SIGNALING_URL` still aimed at the port they meant.
+> `Get-NetTCPConnection` treats "nothing found" as an error and prints a wall of
+> red for the ordinary case, which is why the script uses `netstat` instead.
+
+## Sessions do not survive a restart
+
+Live sessions are held in the signaling service's memory (ADR-0005), so
+restarting it ends every one of them and their join codes stop resolving. Both
+ends now say the connection was lost rather than leaving a dead code on screen,
+but a code from before a restart will never work again. Start a new share.
 
 ## The Phase 0.5 cross-network test
 
