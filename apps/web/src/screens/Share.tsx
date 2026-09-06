@@ -110,8 +110,13 @@ export function Share() {
       // A cancellation is our own doing — the component went away mid-start —
       // and telling the user their connection failed would be a lie.
       if (err instanceof Error && err.message === 'cancelled') return;
-      setMessage('CrossScreen is unreachable. Check your connection and try again.');
+      // The capture is stopped here, and saying so matters: the person granted
+      // a screen a moment ago and everything then vanished. Without this they
+      // have no way to know whether it is still being shared.
       capture.current.stop();
+      setMessage(
+        'CrossScreen is unreachable, so the screen share was stopped. Nothing was shared. Try again once you are connected.',
+      );
       setPhase('idle');
     }
   }
@@ -184,28 +189,48 @@ export function Share() {
         <>
           {/* Non-dismissible for the whole session: the one thing that must
               never be in doubt is whether a screen is being watched. */}
-          <Card className="border-brand-500/40">
-            <div className="flex items-center justify-between gap-4">
-              {/* With nobody there, "Connecting…" is a lie — there is nothing
-                  to connect to yet, and it reads as something being stuck. */}
-              {viewers === 0 ? (
-                <span className="inline-flex items-center gap-2 text-sm">
-                  <span
-                    className="bg-status-good h-2.5 w-2.5 shrink-0 rounded-full"
-                    aria-hidden="true"
-                  />
-                  <span>Ready to share</span>
-                </span>
-              ) : (
-                <StatusDot state={connection} />
-              )}
-              <span className="text-sm text-[var(--text-muted)]">
-                {viewers === 0
-                  ? 'Send the code or link to someone'
-                  : `${viewers} ${viewers === 1 ? 'person is' : 'people are'} watching`}
-              </span>
-            </div>
-          </Card>
+          {/*
+            The indicator and the way to stop, together, above everything else
+            and stuck to the top of the screen.
+
+            They were separated before, with the preview between them, which
+            pushed Stop sharing below the fold — reported, correctly, as the
+            button not being there. A screen being shared with no visible way
+            to stop it is the worst control in this product to lose.
+          */}
+          <div className="sticky top-0 z-20 -mx-1 bg-[var(--surface-page)] px-1 py-2">
+            <Card className="border-brand-500/40">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  {viewers === 0 ? (
+                    <span className="inline-flex items-center gap-2 text-sm">
+                      <span
+                        className="bg-status-good h-2.5 w-2.5 shrink-0 rounded-full"
+                        aria-hidden="true"
+                      />
+                      <span>Ready to share</span>
+                    </span>
+                  ) : (
+                    <StatusDot state={connection} />
+                  )}
+                  <span className="text-sm text-[var(--text-muted)]">
+                    {viewers === 0
+                      ? 'Send the code or link to someone'
+                      : `${viewers} ${viewers === 1 ? 'person is' : 'people are'} watching`}
+                  </span>
+                </div>
+
+                <div className="flex gap-3">
+                  <Button variant="secondary" onClick={() => void switchScreen()}>
+                    Share something else
+                  </Button>
+                  <Button variant="danger" onClick={stop}>
+                    Stop sharing
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          </div>
 
           {pending.map((request) => (
             <ApprovalPrompt
@@ -245,22 +270,28 @@ export function Share() {
             />
           </Card>
 
-          <video
-            ref={preview}
-            autoPlay
-            playsInline
-            muted
-            className="w-full rounded-lg border border-[var(--border-subtle)] bg-black"
-          />
-
-          <div className="flex gap-3">
-            <Button variant="secondary" onClick={() => void switchScreen()}>
-              Share something else
-            </Button>
-            <Button variant="danger" onClick={stop}>
-              Stop sharing
-            </Button>
+          <div>
+            <p className="mb-1.5 text-xs font-medium tracking-wide text-[var(--text-muted)] uppercase">
+              What they see
+            </p>
+            {/* Capped: this is confirmation that the right thing is being
+                shared, not the main event. */}
+            <video
+              ref={preview}
+              autoPlay
+              playsInline
+              muted
+              className="max-h-48 w-full rounded-lg border border-[var(--border-subtle)] bg-black object-contain"
+            />
           </div>
+
+          {/* Sharing a whole screen means this tab is behind whatever is being
+              shared, so this button is not the one they will reach for. Saying
+              the browser's own bar works avoids the reasonable conclusion that
+              there is no way to stop without finding this page again. */}
+          <p className="text-xs text-[var(--text-muted)]">
+            Your browser also shows its own “Stop sharing” bar. Either one ends the session.
+          </p>
         </>
       )}
 

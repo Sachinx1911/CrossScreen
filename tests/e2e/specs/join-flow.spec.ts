@@ -264,6 +264,43 @@ test('the viewer can go fullscreen and come back', async ({ browser }) => {
   await guest.close();
 });
 
+test('a live share offers a way to stop, and stopping ends it for the viewer', async ({
+  browser,
+}) => {
+  // Reported as missing. It was there; the session had failed to start, so the
+  // sharing state was never reached. Worth a test either way — a screen being
+  // shared with no visible way to stop it is the worst button to lose.
+  const host = await browser.newContext();
+  const guest = await browser.newContext();
+  const sharer = await host.newPage();
+  const viewer = await guest.newPage();
+  failOnConsoleErrors(viewer, consoleErrors);
+
+  const { link } = await startSharing(sharer);
+
+  // Visible without scrolling. It was rendered before and sat below the fold,
+  // behind a full-width preview, which is indistinguishable from missing.
+  const stopButton = sharer.getByRole('button', { name: 'Stop sharing' });
+  await expect(stopButton).toBeVisible();
+
+  const viewport = sharer.viewportSize();
+  const box = await stopButton.boundingBox();
+  if (viewport === null || box === null) throw new Error('the stop button has no position');
+  expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
+
+  await viewer.goto(new URL(link).pathname);
+  await sharer.getByRole('button', { name: 'Allow' }).click();
+  await expect(viewer.locator('video')).toBeVisible();
+
+  await sharer.getByRole('button', { name: 'Stop sharing' }).click();
+
+  await expect(viewer.getByText(/ended|lost/i)).toBeVisible();
+  await expect(sharer.getByRole('button', { name: 'Stop sharing' })).toHaveCount(0);
+
+  await host.close();
+  await guest.close();
+});
+
 test('a rejected viewer is told, and never receives a stream', async ({ browser }) => {
   const host = await browser.newContext();
   const guest = await browser.newContext();

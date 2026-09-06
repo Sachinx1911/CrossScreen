@@ -191,28 +191,51 @@ export function App() {
         <>
           {/* Non-dismissible for the whole session: whether a screen is being
               watched must never be in doubt. */}
-          <Card className="border-brand-500/40">
-            <div className="flex items-center justify-between gap-4">
-              {/* With nobody there, "Connecting…" is a lie — there is nothing
-                  to connect to yet, and it reads as something being stuck. */}
-              {viewers === 0 ? (
-                <span className="inline-flex items-center gap-2 text-sm">
-                  <span
-                    className="bg-status-good h-2.5 w-2.5 shrink-0 rounded-full"
-                    aria-hidden="true"
-                  />
-                  <span>Ready to share</span>
-                </span>
-              ) : (
-                <StatusDot state={connection} />
-              )}
-              <span className="text-sm text-[var(--text-muted)]">
-                {viewers === 0
-                  ? 'Send the code or link to someone'
-                  : `${viewers} ${viewers === 1 ? 'person is' : 'people are'} watching`}
-              </span>
-            </div>
-          </Card>
+          {/* Indicator and stop control together, stuck to the top. Separated,
+              with the code and the quality toggle between them, the stop
+              button ends up below the fold — which is indistinguishable from
+              it not being there. */}
+          <div className="sticky top-0 z-20 -mx-1 bg-[var(--surface-page)] px-1 py-2">
+            <Card className="border-brand-500/40">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  {viewers === 0 ? (
+                    <span className="inline-flex items-center gap-2 text-sm">
+                      <span
+                        className="bg-status-good h-2.5 w-2.5 shrink-0 rounded-full"
+                        aria-hidden="true"
+                      />
+                      <span>Ready to share</span>
+                    </span>
+                  ) : (
+                    <StatusDot state={connection} />
+                  )}
+                  <span className="text-sm text-[var(--text-muted)]">
+                    {viewers === 0
+                      ? 'Send the code or link to someone'
+                      : `${viewers} ${viewers === 1 ? 'person is' : 'people are'} watching`}
+                  </span>
+                </div>
+
+                <div className="flex gap-3">
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      // Refresh the list: windows open and close while sharing,
+                      // and an old list offers things that are no longer there.
+                      void capture.current.listSources().then(setSources);
+                      setPhase('switching');
+                    }}
+                  >
+                    Share something else
+                  </Button>
+                  <Button variant="danger" onClick={stop}>
+                    Stop sharing
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          </div>
 
           {pending.map((request) => (
             <ApprovalPrompt
@@ -251,23 +274,6 @@ export function App() {
               }}
             />
           </Card>
-
-          <div className="flex gap-3">
-            <Button
-              variant="secondary"
-              onClick={() => {
-                // Refresh the list: windows open and close while sharing, and
-                // an old list offers things that are no longer there.
-                void capture.current.listSources().then(setSources);
-                setPhase('switching');
-              }}
-            >
-              Share something else
-            </Button>
-            <Button variant="danger" onClick={stop}>
-              Stop sharing
-            </Button>
-          </div>
         </>
       )}
 
