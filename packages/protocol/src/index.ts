@@ -10,5 +10,7 @@
 export * from './constants.ts';
 export * from './errors.ts';
 export * from './session.ts';
+export * from './identifiers.ts';
+export * from './host-token.ts';
 export * from './messages.ts';
 export * from './parse.ts';

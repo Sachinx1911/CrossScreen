@@ -3,6 +3,30 @@
 **Estimate:** 1–2 weeks · **Status:** Code complete; **local loop verified**.
 Cross-network gate still outstanding. **This is the GO/NO-GO gate.**
 
+## Gate outcome — **passed with criterion 4 outstanding** (2026-09-06)
+
+Four of five criteria are met. Criterion 4 is deferred, deliberately, and
+Phase 1 begins.
+
+The risk this gate exists to retire is _"the media path does not work"_, and
+criteria 1, 2, 3 and 5 retire it: a desktop screen reaches a browser viewer
+over WebRTC, on two platforms, holding resolution for eleven minutes without a
+drop. What criterion 4 would additionally prove is that the **relay** path
+works, and that is Phase 2's subject, not Phase 1's. Nothing in Phase 1 —
+sessions, join codes, host approval, the UI — touches it.
+
+It is blocked on a Cloudflare account rather than on anything in the code, so
+holding the whole project behind it would trade real progress for no
+information.
+
+**The cost of being wrong is understood and accepted.** The failed
+cross-network attempt already showed that TURN is load-bearing for the
+product's main use case, so if it turns out to be harder than expected, that
+lands in Phase 2 with Phase 1's work already done — none of which would need
+redoing, because the relay is a transport concern and Phase 1 is a control-plane
+and interface one. Criterion 4 stays open, tracked here, and must close before
+Phase 2 can be called complete.
+
 ## Progress
 
 | Exit criterion                               | Status                                        |

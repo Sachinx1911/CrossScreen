@@ -20,19 +20,19 @@ Phases 4–7 get their full breakdown at the start of the preceding phase.
 
 ## Status
 
-| Phase                  | File                                                           | Estimate | Status                      |
-| ---------------------- | -------------------------------------------------------------- | -------- | --------------------------- |
-| 0 — Foundation         | [phase-0.md](phase-0.md)                                       | ~1 wk    | ✅ **Done** — 2026-09-05    |
-| 0.5 — Walking skeleton | [phase-0.5-walking-skeleton.md](phase-0.5-walking-skeleton.md) | 1–2 wk   | ⏭️ **Next — GO/NO-GO gate** |
-| 1 — MVP core           | [phase-1-mvp-core.md](phase-1-mvp-core.md)                     | 8–10 wk  | Planned                     |
-| 2 — Reliability        | [phase-2-reliability.md](phase-2-reliability.md)               | 4–5 wk   | Planned                     |
-| 3a — Production        | [phase-3a-production.md](phase-3a-production.md)               | 3–4 wk   | Planned                     |
-| 3b — macOS + Linux     | [phase-3b-macos-linux.md](phase-3b-macos-linux.md)             | 2–3 wk   | Planned                     |
-| 4 — Android sharing    | [phase-4-android.md](phase-4-android.md)                       | 6–8 wk   | Outlined                    |
-| 5 — Multi-viewer       | [phase-5-multi-viewer.md](phase-5-multi-viewer.md)             | 2–3 wk   | Outlined                    |
-| 6 — Quality + audio    | [phase-6-quality-audio.md](phase-6-quality-audio.md)           | 3–4 wk   | Outlined                    |
-| 7 — Teaching Mode      | [phase-7-teaching-mode.md](phase-7-teaching-mode.md)           | 4–6 wk   | Outlined                    |
-| 8–10 — Long term       | [phase-8-10-long-term.md](phase-8-10-long-term.md)             | —        | Intent only                 |
+| Phase                  | File                                                           | Estimate | Status                                                  |
+| ---------------------- | -------------------------------------------------------------- | -------- | ------------------------------------------------------- |
+| 0 — Foundation         | [phase-0.md](phase-0.md)                                       | ~1 wk    | ✅ **Done** — 2026-09-05                                |
+| 0.5 — Walking skeleton | [phase-0.5-walking-skeleton.md](phase-0.5-walking-skeleton.md) | 1–2 wk   | ✅ **Passed** — criterion 4 (relay) deferred to Phase 2 |
+| 1 — MVP core           | [phase-1-mvp-core.md](phase-1-mvp-core.md)                     | 8–10 wk  | 🔨 **In progress**                                      |
+| 2 — Reliability        | [phase-2-reliability.md](phase-2-reliability.md)               | 4–5 wk   | Planned                                                 |
+| 3a — Production        | [phase-3a-production.md](phase-3a-production.md)               | 3–4 wk   | Planned                                                 |
+| 3b — macOS + Linux     | [phase-3b-macos-linux.md](phase-3b-macos-linux.md)             | 2–3 wk   | Planned                                                 |
+| 4 — Android sharing    | [phase-4-android.md](phase-4-android.md)                       | 6–8 wk   | Outlined                                                |
+| 5 — Multi-viewer       | [phase-5-multi-viewer.md](phase-5-multi-viewer.md)             | 2–3 wk   | Outlined                                                |
+| 6 — Quality + audio    | [phase-6-quality-audio.md](phase-6-quality-audio.md)           | 3–4 wk   | Outlined                                                |
+| 7 — Teaching Mode      | [phase-7-teaching-mode.md](phase-7-teaching-mode.md)           | 4–6 wk   | Outlined                                                |
+| 8–10 — Long term       | [phase-8-10-long-term.md](phase-8-10-long-term.md)             | —        | Intent only                                             |
 
 **Public MVP = Phases 0 → 3a ≈ 4–6 months part-time.**
 
