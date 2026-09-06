@@ -1,15 +1,27 @@
 /**
  * Fetches short-lived TURN credentials from Cloudflare and writes them into
- * the apps' .env.local files.
+ * `services/api/.env.local`, where `GET /api/v1/ice-servers` reads them
+ * (services/api/src/config.ts, ADR-0004). Clients never see this file — they
+ * call that endpoint and get back whatever it hands out.
  *
  * Phase 0.5 discovered the hard way that TURN is not optional: a PC and a
  * phone on mobile data could not find a direct path at all, and with no relay
  * configured the connection simply failed. Mobile carriers put subscribers
  * behind CGNAT, so this is the normal case rather than bad luck.
  *
- * The long-term secret stays on this machine. This script is a stand-in for
- * the `GET /api/v1/ice-servers` endpoint that Phase 2 builds — same shape,
- * same short TTL, so no client ever ships a long-lived credential (ADR-0004).
+ * The long-term secret stays on this machine, and only this machine — the
+ * `.env.turn` it reads from is gitignored, and Cloudflare's API is asked to
+ * mint a short-lived credential rather than the long-term key ever being
+ * handed to a client. Phase 2 replaces the manual "run this before you test"
+ * step with the API service doing this fetch itself; until then, this is
+ * that step.
+ *
+ * This script used to write `VITE_TURN_URLS` and friends into the web and
+ * desktop apps' own `.env.local` files, from before `/api/v1/ice-servers`
+ * existed and clients read TURN configuration out of their own build. Now
+ * that the endpoint is real, nothing reads those `VITE_TURN_*` variables —
+ * writing them there did nothing, silently, for as long as this script
+ * pointed at the wrong file. Fixed 2026-09-07.
  *
  * Setup, once:
  *   1. dash.cloudflare.com  ->  Realtime  ->  TURN Keys  ->  Create
@@ -30,7 +42,7 @@ import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SECRETS_FILE = join(root, '.env.turn');
 const TTL_SECONDS = 86_400;
-const TARGETS = ['apps/web', 'apps/desktop'];
+const TARGET = 'services/api';
 
 function readSecrets() {
   const values = { ...process.env };
@@ -61,7 +73,7 @@ function readSecrets() {
   return { keyId, apiToken };
 }
 
-/** Replace the VITE_TURN_* lines in a .env.local, leaving everything else. */
+/** Replace the TURN_* lines in a .env.local, leaving everything else. */
 function writeEnv(dir, entries) {
   const file = join(root, dir, '.env.local');
   const managed = new Set(Object.keys(entries));
@@ -127,13 +139,13 @@ console.log('TURN credentials issued.\n');
 console.log(`  valid for:  ${TTL_SECONDS / 3600} hours`);
 console.log(`  urls:       ${turnUrls.join('\n              ')}\n`);
 
-for (const dir of TARGETS) {
-  writeEnv(dir, {
-    VITE_TURN_URLS: turnUrls.join(','),
-    VITE_TURN_USERNAME: withCredentials.username,
-    VITE_TURN_CREDENTIAL: withCredentials.credential,
-  });
-}
+writeEnv(TARGET, {
+  TURN_URLS: turnUrls.join(','),
+  TURN_USERNAME: withCredentials.username,
+  TURN_CREDENTIAL: withCredentials.credential,
+});
 
-console.log('\nRestart `pnpm dev` so the new values are picked up.');
-console.log('To prove the relay path specifically, add ?relay=1 to the viewer URL.');
+console.log('\nRestart `pnpm dev` so the api service picks up the new values.');
+console.log('To prove the relay path specifically:');
+console.log('  browser:  add ?relay=1 to the share or viewer URL');
+console.log('  desktop:  set VITE_FORCE_RELAY=1 in apps/desktop/.env.local and restart');

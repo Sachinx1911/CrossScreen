@@ -354,10 +354,22 @@ TURN credentials are required, and `pnpm turn` fetches them:
    pnpm turn
    ```
 
-It writes short-lived credentials into both apps' `.env.local`. The long-term
-key never leaves this machine — the same arrangement Phase 2's
-`GET /api/v1/ice-servers` endpoint formalises, so no client ever ships a
-long-lived secret.
+It writes a 24-hour credential into `services/api/.env.local`, which
+`GET /api/v1/ice-servers` hands to clients on request. **Restart `pnpm dev`
+afterwards** — the API service reads its environment once, at startup.
+
+No client ever ships a TURN secret: the apps ask that endpoint rather than
+carrying credentials in their own build, and the long-term Cloudflare key never
+leaves `.env.turn` on this machine. Phase 2.1 finishes the job by having the
+service mint a credential per request instead of reading a day-old one from
+its environment.
+
+> Until 2026-09-07 this script wrote `VITE_TURN_*` into the web and desktop
+> apps' `.env.local` instead — left over from before the endpoint existed.
+> Nothing had read those variables since Phase 1, so it printed success and
+> configured nothing, and forced-relay runs failed for what looked like a TURN
+> problem. If a stale `VITE_TURN_*` line is still sitting in either app's
+> `.env.local`, it does nothing and can be deleted.
 
 > **Not optional.** The first cross-network attempt failed outright: a PC and a
 > phone on mobile data could find no direct path, and with no relay configured
@@ -381,9 +393,9 @@ run is a run half wasted.
 | `LOG_LEVEL`                 | signaling      | `debug`, `info`, `warn`, `error`                       |
 | `SIGNALING_TARGET`          | web dev server | Where `/ws` is proxied (default `ws://127.0.0.1:8787`) |
 | `VITE_SIGNALING_URL`        | web, desktop   | WebSocket URL of the signaling server                  |
-| `VITE_TURN_URLS`            | web, desktop   | Comma-separated TURN URLs                              |
-| `VITE_TURN_USERNAME`        | web, desktop   | TURN username                                          |
-| `VITE_TURN_CREDENTIAL`      | web, desktop   | TURN credential                                        |
+| `TURN_URLS`                 | api            | Comma-separated TURN URLs, served to clients           |
+| `TURN_USERNAME`             | api            | TURN username, served to clients                       |
+| `TURN_CREDENTIAL`           | api            | TURN credential, served to clients                     |
 | `VITE_FORCE_RELAY`          | desktop        | `1` pins ICE to relay only                             |
 | `VITE_AUTOSTART`            | desktop        | `1` starts sharing without a click                     |
 | `CROSSSCREEN_SIGNALING_URL` | desktop main   | Overrides `.tunnel-url` at launch                      |

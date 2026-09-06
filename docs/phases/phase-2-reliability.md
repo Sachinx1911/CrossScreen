@@ -52,10 +52,21 @@ measured honestly.
 > working too. Both were ahead of the code; the e2e suite now proves the real
 > behaviour rather than the intended one.
 >
+> **Proven end to end, 2026-09-07.** Both surfaces reported `relayed` against
+> real Cloudflare TURN credentials — which closed
+> [Phase 0.5](phase-0.5-walking-skeleton.md)'s last outstanding criterion.
+> Getting there also fixed `pnpm turn`, which had been writing `VITE_TURN_*`
+> into the two apps' `.env.local` files since before `GET /api/v1/ice-servers`
+> existed. Nothing has read those variables since Phase 1 — the API service
+> reads unprefixed `TURN_URLS` / `TURN_USERNAME` / `TURN_CREDENTIAL` from its
+> own environment — so the script reported success while configuring nothing,
+> and the endpoint kept handing out STUN alone.
+>
 > **2.1 (short-lived TURN credentials) is not yet done** — `/api/v1/ice-servers`
 > still returns whatever static `TURN_URLS`/`TURN_USERNAME`/`TURN_CREDENTIAL` are
-> in `services/api`'s environment, the Phase 0.5 arrangement. `pnpm turn` remains
-> the manual stand-in for local testing.
+> in `services/api`'s environment. `pnpm turn` remains the manual stand-in: it
+> fetches a 24-hour credential and writes it there, rather than the service
+> minting one per request.
 
 ### 2.3 — ICE restart and reconnection
 

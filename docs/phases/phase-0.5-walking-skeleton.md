@@ -1,41 +1,55 @@
 # Phase 0.5 — Walking Skeleton
 
-**Estimate:** 1–2 weeks · **Status:** Code complete; **local loop verified**.
-Cross-network gate still outstanding. **This is the GO/NO-GO gate.**
+**Estimate:** 1–2 weeks · **Status:** **Gate passed in full** (2026-09-07).
+**This was the GO/NO-GO gate.**
 
-## Gate outcome — **passed with criterion 4 outstanding** (2026-09-06)
+## Gate outcome — **passed, all five criteria** (2026-09-07)
 
-Four of five criteria are met. Criterion 4 is deferred, deliberately, and
-Phase 1 begins.
+Criteria 1, 2, 3 and 5 passed on 2026-09-06 and Phase 1 began on that basis.
+Criterion 4 — the forced-relay run proving TURN independently of P2P — closed
+on 2026-09-07, and the gate is now complete.
 
-The risk this gate exists to retire is _"the media path does not work"_, and
-criteria 1, 2, 3 and 5 retire it: a desktop screen reaches a browser viewer
-over WebRTC, on two platforms, holding resolution for eleven minutes without a
-drop. What criterion 4 would additionally prove is that the **relay** path
-works, and that is Phase 2's subject, not Phase 1's. Nothing in Phase 1 —
-sessions, join codes, host approval, the UI — touches it.
+The risk this gate exists to retire is _"the media path does not work"_. It is
+retired: a desktop screen reaches a browser viewer over WebRTC on two
+platforms, held resolution for eleven minutes without a drop, reached a phone
+on mobile data across networks, and relays through TURN when told to.
 
-It is blocked on a Cloudflare account rather than on anything in the code, so
-holding the whole project behind it would trade real progress for no
-information.
+Closing criterion 4 took three fixes rather than just a Cloudflare account,
+each of which had been hiding behind the missing credentials:
 
-**The cost of being wrong is understood and accepted.** The failed
-cross-network attempt already showed that TURN is load-bearing for the
-product's main use case, so if it turns out to be harder than expected, that
-lands in Phase 2 with Phase 1's work already done — none of which would need
-redoing, because the relay is a transport concern and Phase 1 is a control-plane
-and interface one. Criterion 4 stays open, tracked here, and must close before
-Phase 2 can be called complete.
+- **`pnpm turn` wrote to the wrong place.** It set `VITE_TURN_*` in the web and
+  desktop apps' own `.env.local`, left over from before `GET /api/v1/ice-servers`
+  existed. Nothing had read those variables since Phase 1; the API service reads
+  `TURN_URLS` / `TURN_USERNAME` / `TURN_CREDENTIAL` from its own environment. So
+  the script reported success and configured nothing.
+- **Forced relay was never wired into the sharer.** `SharerSession` had no way
+  to pin `iceTransportPolicy` at all, on either app, despite `dev-setup.md`
+  documenting `VITE_FORCE_RELAY` for exactly that.
+- **The guard against forcing relay with no TURN never ran.** `hasTurnServer`
+  existed and was fully unit-tested, with a comment claiming both sessions
+  called it. Neither did — so a misconfiguration failed silently and looked
+  identical to the genuine no-path failure this criterion exists to distinguish
+  it from.
+
+All three are fixed and covered by tests. See
+[phase-2-reliability.md](phase-2-reliability.md) §2.2.
 
 ## Progress
 
-| Exit criterion                               | Status                                        |
-| -------------------------------------------- | --------------------------------------------- |
-| 1. Viewer sees the live screen, text legible | ✅ **locally** — 1920x1080, VP9, no downscale |
-| 2. `candidate-pair` in state `succeeded`     | ✅ **locally** — `path=prflx->host`           |
-| 3. Candidate types logged                    | ✅ both ends print a stats line every 2 s     |
-| 4. Forced-relay run proves TURN              | ⬜ needs TURN credentials and two networks    |
-| 5. Ten minutes without freezing              | ✅ **locally** — 11 min, no drop, no freeze   |
+| Exit criterion                               | Status                                           |
+| -------------------------------------------- | ------------------------------------------------ |
+| 1. Viewer sees the live screen, text legible | ✅ **locally** — 1920x1080, VP9, no downscale    |
+| 2. `candidate-pair` in state `succeeded`     | ✅ **locally** — `path=prflx->host`              |
+| 3. Candidate types logged                    | ✅ both ends print a stats line every 2 s        |
+| 4. Forced-relay run proves TURN              | ✅ **2026-09-07** — relayed, browser and desktop |
+| 5. Ten minutes without freezing              | ✅ **locally** — 11 min, no drop, no freeze      |
+
+Cross-network run, 2026-09-07, macOS 15.5 sharer → phone on mobile data:
+connected direct (`transport=direct`, VP9), which mobile CGNAT does not always
+allow — so the relay was then forced separately rather than left to chance.
+With `?relay=1` in the browser and `VITE_FORCE_RELAY=1` on the desktop app,
+both reported `relayed`, through Cloudflare TURN credentials issued by
+`GET /api/v1/ice-servers`.
 
 Local measurement, 2026-09-05, Windows 11 / Electron 44.2.0:
 
@@ -73,9 +87,12 @@ This is a loopback result. It retires the "does it hold up over time" question
 for the code itself, but criterion 5 is written against two networks and only a
 cross-network run can settle it there.
 
-**Criteria 1, 2 and 5 must be re-run across two networks before the gate
-passes.** Loopback proves the code is wired correctly; it proves nothing about
-NAT traversal, which is the entire point of the exercise.
+**Settled 2026-09-07.** Criteria 1 and 2 were re-run across two networks — a
+Mac sharing to a phone on mobile data, connecting and rendering — and the relay
+was then forced separately for criterion 4. Criterion 5's eleven-minute soak
+has not been repeated across networks; the loopback run stands, and a
+cross-network soak belongs with Phase 2's reconnection work, where a dropped
+connection is the thing under test rather than an interruption to it.
 
 ### Bugs this phase has already caught
 

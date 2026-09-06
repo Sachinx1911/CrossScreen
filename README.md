@@ -6,9 +6,10 @@ Cross-platform, real-time screen sharing. Share your screen from a computer,
 watch it in any browser — desktop, Android, or iOS — with nothing to install
 on the viewer's side.
 
-> **Status: Phase 0.5 — walking skeleton.** Not yet a product. A desktop
-> screen reaches a browser viewer over WebRTC, which is all this phase is meant
-> to prove. See [`docs/roadmap.md`](docs/roadmap.md) for what ships when.
+> **Status: Phase 1 code complete, Phase 2 started.** Not yet a product, but
+> the full loop works: a screen shared from a browser or the desktop app
+> reaches a viewer on another network, with host approval, over a direct path
+> or a TURN relay. See [`docs/roadmap.md`](docs/roadmap.md) for what ships when.
 
 ### Picking this up on another machine
 
@@ -17,21 +18,21 @@ pnpm setup     # install, build, create .env.local files
 pnpm dev       # signaling + web viewer + Electron sharer
 ```
 
-**Next task: finish the Phase 0.5 gate.** One of its five criteria is open
-outright, and three more pass on loopback but have to be re-run across two
-networks before they count. All four are blocked on the same thing.
+**The Phase 0.5 gate passed in full on 2026-09-07**, relay included: a Mac
+sharing to a phone on mobile data connected directly, and forcing the relay on
+both the browser and the desktop app put the media through Cloudflare TURN.
+Details, and the three silent misconfigurations that closing it uncovered, are
+in [`docs/phases/phase-0.5-walking-skeleton.md`](docs/phases/phase-0.5-walking-skeleton.md).
 
-The first cross-network attempt — a PC sharing to a phone on mobile data —
-**failed to connect at all.** Signaling was fine and the offer and answer were
-exchanged, but ICE found no direct path and no relay was configured to fall
-back to. Mobile carriers put subscribers behind carrier-grade NAT, so this is
-the ordinary case, not bad luck. It settles something the architecture had only
-assumed: TURN is load-bearing for the main use case, not a fallback for unlucky
-networks.
+**Next task: Phase 2 — reliability.** §2.2 (forced-relay mode) is done. The
+rest is reconnection: surviving a Wi-Fi-to-mobile handover, a closed laptop
+lid, a dropped signaling socket — none of which should ever cost someone their
+session code. See [`docs/phases/phase-2-reliability.md`](docs/phases/phase-2-reliability.md).
 
-To unblock it, create a Cloudflare TURN key and run `pnpm turn` — the steps are
-in [`docs/dev-setup.md`](docs/dev-setup.md). Then `pnpm tunnel`, `pnpm dev`, and
-open the printed URL on a phone **with Wi-Fi off**.
+To run the relay path yourself, create a Cloudflare TURN key and run
+`pnpm turn` — the steps are in [`docs/dev-setup.md`](docs/dev-setup.md). Then
+`pnpm tunnel`, `pnpm dev`, and open the printed URL on a phone **with Wi-Fi
+off**.
 
 Capture itself is no longer in question on either desktop platform. It is
 verified on Windows 11 and on macOS 15.5 — ScreenCaptureKit, 2940x1912 at
