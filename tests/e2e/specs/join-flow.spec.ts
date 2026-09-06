@@ -322,6 +322,36 @@ test('a rejected viewer is told, and never receives a stream', async ({ browser 
   await guest.close();
 });
 
+test('a viewer nobody answers is told, and stops waiting on their own', async ({ browser }) => {
+  // JOIN_REQUEST_TIMEOUT_MS is turned down to 4s for this suite (see
+  // playwright.config.ts) — a host who never responds is the ordinary case,
+  // not a bug, and a viewer left on "Waiting…" forever is indistinguishable
+  // from a hang.
+  const host = await browser.newContext();
+  const guest = await browser.newContext();
+  const sharer = await host.newPage();
+  const viewer = await guest.newPage();
+  failOnConsoleErrors(viewer, consoleErrors);
+
+  const { link } = await startSharing(sharer);
+  await viewer.goto(new URL(link).pathname);
+
+  await expect(sharer.getByRole('alertdialog')).toBeVisible();
+  await expect(viewer.getByText('Waiting for the host to let you in…')).toBeVisible();
+
+  await expect(viewer.getByText("The host didn't respond. You can try again.")).toBeVisible({
+    timeout: 10_000,
+  });
+  await expect(viewer.locator('video')).toHaveCount(0);
+
+  // Answered, not merely abandoned: the host's prompt clears too, the same
+  // way it does when a viewer leaves while still pending.
+  await expect(sharer.getByRole('alertdialog')).toHaveCount(0);
+
+  await host.close();
+  await guest.close();
+});
+
 test('a viewer who leaves while waiting takes their prompt with them', async ({ browser }) => {
   // Otherwise the host is left able to allow someone who has already gone.
   const host = await browser.newContext();

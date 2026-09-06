@@ -1,6 +1,12 @@
 import { SESSION_TIMEOUTS } from '@crossscreen/protocol';
 
-import type { LiveSession } from './live-session.ts';
+import type { LiveSession, Viewer } from './live-session.ts';
+
+/** One pending request that timed out, and the session it belonged to. */
+export interface StaleJoinRequest {
+  session: LiveSession;
+  viewer: Viewer;
+}
 
 /**
  * Where live sessions live.
@@ -18,6 +24,8 @@ export interface SessionStore {
   remove(sessionId: string): void;
   /** Drop expired sessions, returning those removed so callers can notify. */
   sweep(now?: number): LiveSession[];
+  /** Reject pending viewers who have waited past the join-request timeout. */
+  expireStaleJoinRequests(timeoutMs: number, now?: number): StaleJoinRequest[];
   readonly size: number;
 }
 
@@ -68,6 +76,16 @@ export class InMemorySessionStore implements SessionStore {
       if (session.isExpired(now)) expired.push(session);
     }
     for (const session of expired) this.remove(session.sessionId);
+    return expired;
+  }
+
+  expireStaleJoinRequests(timeoutMs: number, now = Date.now()): StaleJoinRequest[] {
+    const expired: StaleJoinRequest[] = [];
+    for (const session of this.#byId.values()) {
+      for (const viewer of session.expireStaleRequests(timeoutMs, now)) {
+        expired.push({ session, viewer });
+      }
+    }
     return expired;
   }
 }

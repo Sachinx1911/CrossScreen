@@ -133,6 +133,24 @@ export class LiveSession {
   }
 
   /**
+   * Pending viewers who have waited past `timeoutMs` get an answer instead of
+   * an indefinite one — the host may simply not be looking at the prompt.
+   * Marked and removed the same way an explicit rejection is, so a request
+   * that has already timed out cannot later be approved by a host who never
+   * saw it expire.
+   */
+  expireStaleRequests(timeoutMs: number, now = Date.now()): Viewer[] {
+    const stale = this.viewers.filter(
+      (viewer) => viewer.state === 'pending' && now - viewer.requestedAt >= timeoutMs,
+    );
+    for (const viewer of stale) {
+      viewer.state = 'rejected';
+      this.removeViewer(viewer.id, now);
+    }
+    return stale;
+  }
+
+  /**
    * Whether one participant may exchange WebRTC negotiation with another.
    *
    * This is the gate ADR-0006 rests on, and it is deliberately the only place

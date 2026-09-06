@@ -114,6 +114,30 @@ test('sweeping an empty store does nothing and costs nothing', () => {
   assert.deepEqual(store.sweep(Date.now()), []);
 });
 
+test('the store times out a pending request and names the session it belongs to', () => {
+  const now = Date.now();
+  const store = new InMemorySessionStore();
+  const session = new LiveSession(claims(now), fakeSocket(), now);
+  const viewer = session.addViewer({
+    deviceLabel: 'iPad · Safari',
+    approximateLocation: undefined,
+    joinedVia: 'link',
+    socket: fakeSocket(),
+    now,
+  });
+  store.add(session);
+
+  assert.deepEqual(store.expireStaleJoinRequests(60_000, now + 30_000), [], 'not yet');
+
+  const expired = store.expireStaleJoinRequests(60_000, now + 61_000);
+  assert.equal(expired.length, 1);
+  assert.equal(expired[0]?.session, session);
+  assert.equal(expired[0]?.viewer.id, viewer.id);
+  // Unlike a swept session, the session itself is untouched — only the
+  // request that timed out.
+  assert.equal(store.byId(session.sessionId), session);
+});
+
 test('a host reattaching replaces its session rather than duplicating it', () => {
   // Otherwise a reconnect leaves the old entry indexed under the same code,
   // and which one a viewer reaches depends on insertion order.

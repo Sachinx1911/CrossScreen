@@ -162,6 +162,37 @@ test('a viewer keeps the session alive, and leaving restarts the clock', () => {
   assert.equal(session.isExpired(now + 60 * 60 * 1000 + 6 * 60 * 1000), true);
 });
 
+test('a pending viewer past the join-request timeout is rejected', () => {
+  const now = Date.now();
+  const session = new LiveSession(claims(now), fakeSocket());
+  const viewer = session.addViewer({
+    deviceLabel: 'Android · Chrome',
+    approximateLocation: undefined,
+    joinedVia: 'code',
+    socket: fakeSocket(),
+    now,
+  });
+
+  const stillWaiting = session.expireStaleRequests(60_000, now + 30_000);
+  assert.deepEqual(stillWaiting, [], 'not yet 60 seconds');
+  assert.equal(viewer.state, 'pending');
+
+  const timedOut = session.expireStaleRequests(60_000, now + 61_000);
+  assert.equal(timedOut.length, 1);
+  assert.equal(timedOut[0]?.id, viewer.id);
+  assert.equal(viewer.state, 'rejected');
+  assert.equal(session.viewer(viewer.id), undefined, 'removed the same as an explicit rejection');
+});
+
+test('an approved viewer is left alone by the join-request timeout', () => {
+  const { session, viewer } = sessionWithViewer();
+  session.approve(viewer.id);
+
+  const expired = session.expireStaleRequests(0, Date.now() + 1_000);
+  assert.deepEqual(expired, [], 'approval already answered the request');
+  assert.equal(viewer.state, 'approved');
+});
+
 test('a session expires at its hard ceiling however busy it is', () => {
   const now = Date.now();
   const session = new LiveSession(claims(now), fakeSocket(), now);

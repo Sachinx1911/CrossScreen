@@ -7,6 +7,8 @@
  * configuration rather than by code.
  */
 
+import { SESSION_TIMEOUTS } from '@crossscreen/protocol';
+
 import { log } from './log.ts';
 
 /** Report and stop, the way a port clash does — not a stack trace. */
@@ -76,6 +78,18 @@ export const config = {
    * arrive in production as a publicly known signing key.
    */
   sessionSecret: secretFromEnv('SESSION_SECRET', 32),
+  /**
+   * How long a pending join request waits before it is auto-rejected.
+   * Defaulted from the protocol constant so every client's copy of the same
+   * number stays the source of truth; overridable so the end-to-end suite can
+   * turn it down instead of a test taking a real minute to run.
+   */
+  joinRequestTimeoutMs: intFromEnv(
+    'JOIN_REQUEST_TIMEOUT_MS',
+    SESSION_TIMEOUTS.joinRequestMs,
+    1_000,
+    10 * 60 * 1_000,
+  ),
   // LOG_LEVEL is deliberately absent. It is read in log.ts instead, because
   // this module logs its own rejections and cannot import a logger that
   // imports it back. A `logLevel` here would be read by nothing and changing

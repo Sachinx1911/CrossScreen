@@ -114,6 +114,31 @@ startSweeper(store, (session) => {
   log.info('session.expired', { sessionId: session.sessionId, reason: session.endedReason });
 });
 
+// A per-viewer clock, not a per-session one, so it runs on its own schedule
+// rather than piggybacking on the 30s session sweep — a request left pending
+// deserves an answer sooner than that, and JOIN_REQUEST_TIMEOUT_MS would be
+// pointless to turn down for a test if the check only ran every 30 seconds.
+const joinRequestSweep = setInterval(() => {
+  for (const { session, viewer } of store.expireStaleJoinRequests(config.joinRequestTimeoutMs)) {
+    sendError(viewer.socket, 'JOIN_REQUEST_TIMED_OUT');
+    // The same message a viewer leaving mid-wait already sends: it clears the
+    // prompt on the host's screen, so nobody can approve a request that has
+    // already been answered.
+    send(session.hostSocket, { type: 'peer.left', participantId: viewer.id });
+    recorder.sessionEvent({
+      sessionId: session.sessionId,
+      event: 'viewer_rejected',
+      participantId: viewer.id,
+      detail: { reason: 'timed_out' },
+    });
+    log.info('viewer.request_timed_out', {
+      sessionId: session.sessionId,
+      participantId: viewer.id,
+    });
+  }
+}, 1_000);
+joinRequestSweep.unref();
+
 function onListenError(err: NodeJS.ErrnoException): void {
   if (err.code === 'EADDRINUSE') {
     log.error('signaling.port_in_use', {

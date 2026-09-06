@@ -21,6 +21,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 const configUrl = pathToFileURL(join(here, 'config.ts')).href;
 const LOAD_CONFIG = `import('${configUrl}').then((m) => console.log(m.config.port));`;
 
+const LOAD_JOIN_TIMEOUT = `import('${configUrl}').then((m) => console.log(m.config.joinRequestTimeoutMs));`;
+
 const VALID_SECRET = 'a-signaling-test-secret-long-enough-ok';
 
 /**
@@ -30,6 +32,7 @@ const VALID_SECRET = 'a-signaling-test-secret-long-enough-ok';
 function loadWith(
   port: string | undefined,
   overrides: Record<string, string | undefined> = {},
+  script: string = LOAD_CONFIG,
 ): { code: number; output: string } {
   const base: Record<string, string | undefined> = {
     ...process.env,
@@ -43,7 +46,7 @@ function loadWith(
   ) as Record<string, string>;
 
   try {
-    const output = execFileSync(process.execPath, ['-e', LOAD_CONFIG], {
+    const output = execFileSync(process.execPath, ['-e', script], {
       env,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -104,6 +107,16 @@ test('a short session secret is refused, and never echoed back', () => {
   assert.equal(code, 1);
   assert.match(output, /at least 32 characters/);
   assert.ok(!output.includes(secret), 'the secret appeared in the refusal');
+});
+
+test('the join-request timeout defaults to the protocol constant', () => {
+  const { output } = loadWith(undefined, {}, LOAD_JOIN_TIMEOUT);
+  assert.equal(output.trim(), '60000');
+});
+
+test('the join-request timeout can be turned down, for a test that cannot wait a minute', () => {
+  const { output } = loadWith(undefined, { JOIN_REQUEST_TIMEOUT_MS: '4000' }, LOAD_JOIN_TIMEOUT);
+  assert.equal(output.trim(), '4000');
 });
 
 test('the refusal names the variable and the value', () => {

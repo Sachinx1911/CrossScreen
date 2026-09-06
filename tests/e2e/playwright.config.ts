@@ -91,7 +91,16 @@ export default defineConfig({
       command: 'node ../../services/signaling/src/server.ts',
       port: 8887,
       reuseExistingServer: false,
-      env: { SESSION_SECRET, SIGNALING_PORT: '8887', LOG_LEVEL: 'warn' },
+      env: {
+        SESSION_SECRET,
+        SIGNALING_PORT: '8887',
+        LOG_LEVEL: 'warn',
+        // Turned down from the real 60s default so the join-timed-out test
+        // does not cost a real minute. Comfortably above every other test's
+        // longest pending-viewer wait, so nothing else in this suite times out
+        // by accident.
+        JOIN_REQUEST_TIMEOUT_MS: '4000',
+      },
     },
     {
       command: 'pnpm --filter @crossscreen/web exec vite --port 5273 --strictPort',
