@@ -141,6 +141,14 @@ Playwright with two browser contexts: create, join, approve, connect, leave.
 Plus the paths that matter most for safety — join rejected, join timed out,
 session expired, host ends mid-session.
 
+> **Known gap while this phase is in flight.** The Electron sharer still speaks
+> the walking skeleton's protocol — it connects and starts negotiating, where
+> the server now expects `session.host.attach` with a host token first. It is
+> therefore broken against the current signaling service until slice 1.9
+> migrates it onto `SharerSession`. This is a deliberate ordering, not an
+> oversight: ADR-0010 makes the browser the primary path, so it was built
+> first, and the desktop app follows it onto the same shared session object.
+
 ### 1.11 — ESLint
 
 Added once there is enough code for it to earn its keep (Phase 0 debt).

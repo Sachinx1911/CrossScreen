@@ -1,0 +1,93 @@
+@import 'tailwindcss';
+
+/**
+ * Design tokens, taken from the supplied mockup (docs/ui-scope.md §4).
+ *
+ * Dark is defined alongside light even though the mockup only shows light. The
+ * viewer is a full-screen video that people watch at night, and a white
+ * interface around it is genuinely unpleasant — this is not a preference to
+ * defer.
+ */
+@theme {
+  --color-brand-50: #eef4ff;
+  --color-brand-100: #d9e6ff;
+  --color-brand-500: #2f6fed;
+  --color-brand-600: #1f57c9;
+  --color-brand-700: #17429b;
+
+  /* Connection status. Each is paired with words in the UI, never used alone —
+     colour on its own is unreadable to a good number of people. */
+  --color-status-good: #2fbf71;
+  --color-status-warn: #e8a33d;
+  --color-status-bad: #e5534b;
+
+  --radius-card: 12px;
+  --shadow-card: 0 1px 2px rgb(16 24 40 / 0.05), 0 4px 12px rgb(16 24 40 / 0.06);
+
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+@layer base {
+  :root {
+    --surface-page: #f7f8fa;
+    --surface-card: #ffffff;
+    --surface-sunken: #eef0f4;
+    --border-subtle: #e3e6ec;
+    --text-strong: #101828;
+    --text-muted: #667085;
+  }
+
+  /* Follows the system, with no toggle yet: a preference nobody has expressed
+     is not worth a control. */
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --surface-page: #0b0d10;
+      --surface-card: #14181d;
+      --surface-sunken: #1b2027;
+      --border-subtle: #262c34;
+      --text-strong: #e8eaed;
+      --text-muted: #9aa3ad;
+    }
+  }
+
+  html {
+    color-scheme: light dark;
+  }
+
+  body {
+    background: var(--surface-page);
+    color: var(--text-strong);
+    font-family: var(--font-sans);
+    margin: 0;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Visible focus everywhere. The join flow is used by people who are not
+     comfortable with computers, and a keyboard user who cannot see where they
+     are is simply lost. */
+  :focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: 2px;
+  }
+}
+
+@utility card {
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+/**
+ * The session code, `482 719`.
+ *
+ * Tabular figures so the digits do not shift width as they change, and wide
+ * spacing because this gets read aloud over a phone call more often than it
+ * gets copied.
+ */
+@utility session-code {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.12em;
+  font-weight: 600;
+}

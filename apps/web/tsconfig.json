@@ -8,15 +8,20 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "noEmit": false,
-    "emitDeclarationOnly": true
+    "emitDeclarationOnly": true,
+    "jsx": "react-jsx"
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
   "references": [
     {
       "path": "../../packages/protocol"
     },
     {
       "path": "../../packages/webrtc-core"
+    },
+    {
+      "path": "../../packages/capture"
     }
-  ]
+  ],
+  "exclude": ["src/**/*.test.ts"]
 }
