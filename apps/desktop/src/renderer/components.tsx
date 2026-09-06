@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import { useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 
 import type { ConnectionState, JoinRequestInfo } from '@crossscreen/protocol';
 
@@ -55,6 +55,59 @@ export function StatusDot({ state }: { state: ConnectionState }) {
       <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${colour}`} aria-hidden="true" />
       <span>{label}</span>
     </span>
+  );
+}
+
+/**
+ * Something to copy, with confirmation that it worked.
+ *
+ * A share link that cannot be copied is close to useless — it exists to be
+ * pasted into a message. And without the confirmation people press the button
+ * repeatedly, because a clipboard write is otherwise completely invisible.
+ */
+export function CopyField({
+  label,
+  value,
+  display,
+  large = false,
+}: {
+  label: string;
+  value: string;
+  display?: string;
+  large?: boolean;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  async function copy(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => {
+        setCopied(false);
+      }, 2000);
+    } catch {
+      // Clipboard access can be refused, and there is nothing to do about it.
+      // The value is on screen and selectable either way.
+      setCopied(false);
+    }
+  }
+
+  return (
+    <div>
+      <p className="mb-1.5 text-xs tracking-wide text-[var(--text-muted)] uppercase">{label}</p>
+      <div className="flex items-center gap-3">
+        <code
+          className={`flex-1 truncate rounded-lg bg-[var(--surface-sunken)] px-4 py-3 ${
+            large ? 'session-code text-3xl' : 'text-sm'
+          }`}
+        >
+          {display ?? value}
+        </code>
+        <Button variant="secondary" onClick={() => void copy()} aria-label={`Copy ${label}`}>
+          {copied ? 'Copied' : 'Copy'}
+        </Button>
+      </div>
+    </div>
   );
 }
 

@@ -50,7 +50,7 @@ test('a viewer sees the screen once the host allows them', async ({ browser }) =
   failOnConsoleErrors(viewer, consoleErrors);
 
   const { link } = await startSharing(sharer);
-  await expect(sharer.getByText('Nobody is watching yet')).toBeVisible();
+  await expect(sharer.getByText('Send the code or link to someone')).toBeVisible();
 
   await viewer.goto(new URL(link).pathname);
 
@@ -87,6 +87,47 @@ test('a viewer sees the screen once the host allows them', async ({ browser }) =
   await guest.close();
 });
 
+test('the code and link can be copied, and say so', async ({ browser, context }) => {
+  // A share link exists to be pasted into a message. Without a copy button it
+  // has to be selected by hand out of a monospace box, and without the
+  // confirmation people press repeatedly, because a clipboard write is
+  // otherwise completely invisible.
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+
+  const host = await browser.newContext();
+  await host.grantPermissions(['clipboard-read', 'clipboard-write']);
+  const sharer = await host.newPage();
+
+  const { link } = await startSharing(sharer);
+
+  // The code and the link each need one.
+  const copyButtons = sharer.getByRole('button', { name: /^Copy / });
+  await expect(copyButtons).toHaveCount(2);
+
+  await sharer.getByRole('button', { name: 'Copy Share link' }).click();
+  await expect(sharer.getByRole('button', { name: 'Copy Share link' })).toHaveText('Copied');
+
+  const clipboard = await sharer.evaluate(() => navigator.clipboard.readText());
+  expect(clipboard).toBe(link);
+
+  await host.close();
+});
+
+test('the status does not claim to be connecting when nobody is there', async ({ browser }) => {
+  // "Connecting…" with no viewer is a lie — there is nothing to connect to
+  // yet — and it reads as something being stuck.
+  const host = await browser.newContext();
+  const sharer = await host.newPage();
+
+  await startSharing(sharer);
+
+  await expect(sharer.getByText('Ready to share')).toBeVisible();
+  await expect(sharer.getByText('Send the code or link to someone')).toBeVisible();
+  await expect(sharer.locator('body')).not.toContainText('Connecting…');
+
+  await host.close();
+});
+
 test('exactly one prompt appears for one viewer', async ({ browser }) => {
   // React remounting an effect used to produce two, because a stopped session
   // went on to open a socket and join anyway.
@@ -108,6 +149,46 @@ test('exactly one prompt appears for one viewer', async ({ browser }) => {
   await guest.close();
 });
 
+test('switching what is shared does not interrupt anyone watching', async ({ browser }) => {
+  // Picking the wrong window is an ordinary mistake. Answering it by stopping
+  // and starting again drops every viewer and makes each ask permission a
+  // second time, which is out of all proportion to the mistake.
+  const host = await browser.newContext();
+  const guest = await browser.newContext();
+  const sharer = await host.newPage();
+  const viewer = await guest.newPage();
+  failOnConsoleErrors(viewer, consoleErrors);
+
+  const { link } = await startSharing(sharer);
+  await viewer.goto(new URL(link).pathname);
+  await sharer.getByRole('button', { name: 'Allow' }).click();
+  await expect(viewer.locator('video')).toBeVisible();
+
+  await expect
+    .poll(async () =>
+      viewer.locator('video').evaluate((el: HTMLVideoElement) => !el.paused && el.currentTime > 0),
+    )
+    .toBe(true);
+
+  const before = await viewer.locator('video').evaluate((el: HTMLVideoElement) => el.currentTime);
+
+  await sharer.getByRole('button', { name: 'Share something else' }).click();
+  await sharer.waitForTimeout(1500);
+
+  // Still watching, still the same session, still playing — no reconnection,
+  // no second approval, no gap.
+  await expect(viewer.locator('video')).toBeVisible();
+  await expect(sharer.getByText('1 person is watching')).toBeVisible();
+  await expect(viewer.getByText(/ended|declined|unreachable/i)).toHaveCount(0);
+
+  await expect
+    .poll(async () => viewer.locator('video').evaluate((el: HTMLVideoElement) => el.currentTime))
+    .toBeGreaterThan(before);
+
+  await host.close();
+  await guest.close();
+});
+
 test('a rejected viewer is told, and never receives a stream', async ({ browser }) => {
   const host = await browser.newContext();
   const guest = await browser.newContext();
@@ -123,7 +204,7 @@ test('a rejected viewer is told, and never receives a stream', async ({ browser 
 
   await expect(viewer.getByText('The host declined your request to join.')).toBeVisible();
   await expect(viewer.locator('video')).toHaveCount(0);
-  await expect(sharer.getByText('Nobody is watching yet')).toBeVisible();
+  await expect(sharer.getByText('Send the code or link to someone')).toBeVisible();
 
   await host.close();
   await guest.close();

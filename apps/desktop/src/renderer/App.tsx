@@ -5,10 +5,10 @@ import type { ConnectionState, JoinRequestInfo } from '@crossscreen/protocol';
 import { ApiClient, SharerSession, type CreatedSession } from '@crossscreen/webrtc-core';
 
 import { SourcePicker } from './SourcePicker.tsx';
-import { ApprovalPrompt, Button, Card, StatusDot } from './components.tsx';
+import { ApprovalPrompt, Button, Card, CopyField, StatusDot } from './components.tsx';
 import { apiBaseUrl, signalingUrl } from './config.ts';
 
-type Phase = 'choosing' | 'starting' | 'sharing' | 'stopped';
+type Phase = 'choosing' | 'starting' | 'sharing' | 'switching' | 'stopped';
 
 /**
  * The desktop sharer, on the same `SharerSession` the browser uses.
@@ -107,6 +107,32 @@ export function App() {
     }
   }
 
+  /**
+   * Swap what is being shared without dropping anyone.
+   *
+   * Picking the wrong window is an ordinary mistake, and the old answer to it —
+   * stop, choose again, and have everyone ask permission a second time — is a
+   * disproportionate amount of ceremony for it.
+   */
+  async function switchTo(source: CaptureSource): Promise<void> {
+    setMessage(undefined);
+    let stream: MediaStream;
+    try {
+      stream = await capture.current.start({ sourceId: source.id, optimiseForText: true });
+    } catch (err) {
+      if (err instanceof CaptureCancelled) {
+        setPhase('sharing');
+        return;
+      }
+      setMessage(err instanceof Error ? err.message : 'That screen could not be shared.');
+      setPhase('sharing');
+      return;
+    }
+
+    await sharer.current?.replaceStream(stream);
+    setPhase('sharing');
+  }
+
   function decide(participantId: string, allow: boolean): void {
     setPending((current) => current.filter((r) => r.participantId !== participantId));
     if (allow) sharer.current?.approve(participantId);
@@ -125,10 +151,12 @@ export function App() {
         </Card>
       )}
 
-      {phase === 'choosing' && (
+      {(phase === 'choosing' || phase === 'switching') && (
         <>
           <p className="text-sm text-[var(--text-muted)]">
-            Choose what to share. Nobody sees anything until you allow them.
+            {phase === 'switching'
+              ? 'Choose what to share instead. Nobody watching will be interrupted.'
+              : 'Choose what to share. Nobody sees anything until you allow them.'}
           </p>
           {sources.length === 0 ? (
             <Card>Looking for screens and windows…</Card>
@@ -136,7 +164,8 @@ export function App() {
             <SourcePicker
               sources={sources}
               onChoose={(source) => {
-                void share(source);
+                if (phase === 'switching') void switchTo(source);
+                else void share(source);
               }}
             />
           )}
@@ -151,10 +180,22 @@ export function App() {
               watched must never be in doubt. */}
           <Card className="border-brand-500/40">
             <div className="flex items-center justify-between gap-4">
-              <StatusDot state={viewers > 0 ? connection : 'connecting'} />
+              {/* With nobody there, "Connecting…" is a lie — there is nothing
+                  to connect to yet, and it reads as something being stuck. */}
+              {viewers === 0 ? (
+                <span className="inline-flex items-center gap-2 text-sm">
+                  <span
+                    className="bg-status-good h-2.5 w-2.5 shrink-0 rounded-full"
+                    aria-hidden="true"
+                  />
+                  <span>Ready to share</span>
+                </span>
+              ) : (
+                <StatusDot state={connection} />
+              )}
               <span className="text-sm text-[var(--text-muted)]">
                 {viewers === 0
-                  ? 'Nobody is watching yet'
+                  ? 'Send the code or link to someone'
                   : `${viewers} ${viewers === 1 ? 'person is' : 'people are'} watching`}
               </span>
             </div>
@@ -173,25 +214,47 @@ export function App() {
             />
           ))}
 
-          <Card className="space-y-4">
-            <div>
-              <p className="text-xs tracking-wide text-[var(--text-muted)] uppercase">
-                Session code
-              </p>
-              <p className="session-code mt-1 text-3xl">{session.joinCodeDisplay}</p>
-            </div>
-            <div>
-              <p className="text-xs tracking-wide text-[var(--text-muted)] uppercase">Share link</p>
-              <code className="mt-1 block truncate rounded bg-[var(--surface-sunken)] px-3 py-2 text-sm">
-                {session.shareLink}
-              </code>
-            </div>
+          <Card className="space-y-5">
+            <CopyField
+              label="Session code"
+              value={session.joinCode}
+              display={session.joinCodeDisplay}
+              large
+            />
+            <CopyField label="Share link" value={session.shareLink} />
+            <p className="text-xs text-[var(--text-muted)]">
+              Anyone with this code or link can ask to watch. You still decide.
+            </p>
           </Card>
 
-          <Button variant="danger" onClick={stop}>
-            Stop sharing
-          </Button>
+          <div className="flex gap-3">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                // Refresh the list: windows open and close while sharing, and
+                // an old list offers things that are no longer there.
+                void capture.current.listSources().then(setSources);
+                setPhase('switching');
+              }}
+            >
+              Share something else
+            </Button>
+            <Button variant="danger" onClick={stop}>
+              Stop sharing
+            </Button>
+          </div>
         </>
+      )}
+
+      {phase === 'switching' && (
+        <Button
+          variant="secondary"
+          onClick={() => {
+            setPhase('sharing');
+          }}
+        >
+          Keep sharing what I have
+        </Button>
       )}
 
       {phase === 'stopped' && (
@@ -202,7 +265,7 @@ export function App() {
             setMessage(undefined);
           }}
         >
-          Share something else
+          Start again
         </Button>
       )}
     </div>

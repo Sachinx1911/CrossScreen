@@ -109,6 +109,33 @@ export function Share() {
     }
   }
 
+  /**
+   * Swap what is being shared without dropping anyone.
+   *
+   * Picking the wrong window is an ordinary mistake, and the old answer to it —
+   * stop, choose again, and have everyone ask permission a second time — is a
+   * disproportionate amount of ceremony for it. `replaceTrack` changes the
+   * outgoing media on a live connection, so viewers see the new screen appear
+   * in place of the old one.
+   */
+  async function switchScreen(): Promise<void> {
+    setMessage(undefined);
+
+    let stream: MediaStream;
+    try {
+      stream = await capture.current.start({ optimiseForText: true });
+    } catch (err) {
+      // Changing their mind at the picker leaves the current share running,
+      // which is exactly right — nothing was broken.
+      if (err instanceof CaptureCancelled) return;
+      setMessage(err instanceof CaptureRefused ? err.message : 'That screen could not be shared.');
+      return;
+    }
+
+    if (preview.current !== null) preview.current.srcObject = stream;
+    await sharer.current?.replaceStream(stream);
+  }
+
   function decide(participantId: string, allow: boolean): void {
     setPending((current) => current.filter((r) => r.participantId !== participantId));
     if (allow) sharer.current?.approve(participantId);
@@ -152,10 +179,22 @@ export function Share() {
               never be in doubt is whether a screen is being watched. */}
           <Card className="border-brand-500/40">
             <div className="flex items-center justify-between gap-4">
-              <StatusDot state={viewers > 0 ? connection : 'connecting'} />
+              {/* With nobody there, "Connecting…" is a lie — there is nothing
+                  to connect to yet, and it reads as something being stuck. */}
+              {viewers === 0 ? (
+                <span className="inline-flex items-center gap-2 text-sm">
+                  <span
+                    className="bg-status-good h-2.5 w-2.5 shrink-0 rounded-full"
+                    aria-hidden="true"
+                  />
+                  <span>Ready to share</span>
+                </span>
+              ) : (
+                <StatusDot state={connection} />
+              )}
               <span className="text-sm text-[var(--text-muted)]">
                 {viewers === 0
-                  ? 'Nobody is watching yet'
+                  ? 'Send the code or link to someone'
                   : `${viewers} ${viewers === 1 ? 'person is' : 'people are'} watching`}
               </span>
             </div>
@@ -195,9 +234,14 @@ export function Share() {
             className="w-full rounded-lg border border-[var(--border-subtle)] bg-black"
           />
 
-          <Button variant="danger" onClick={stop}>
-            Stop sharing
-          </Button>
+          <div className="flex gap-3">
+            <Button variant="secondary" onClick={() => void switchScreen()}>
+              Share something else
+            </Button>
+            <Button variant="danger" onClick={stop}>
+              Stop sharing
+            </Button>
+          </div>
         </>
       )}
 

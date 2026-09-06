@@ -25,6 +25,8 @@ export interface SharerEvents {
   /** Someone is asking to watch. Nothing has been sent to them. */
   pending: JoinRequestInfo;
   viewerJoined: { participantId: string };
+  /** What is being shared was swapped mid-session. */
+  streamChanged: { stream: MediaStream };
   viewerLeft: { participantId: string };
   connection: { state: ConnectionState };
   stats: ConnectionSnapshot;
@@ -36,7 +38,10 @@ export interface SharerEvents {
 export interface SharerDependencies {
   api: ApiClient;
   signalingUrl: string;
-  /** Supplied rather than captured here: the shell owns the capture policy. */
+  /**
+   * Supplied rather than captured here: the shell owns the capture policy.
+   * Mutable, because `replaceStream` swaps it mid-session.
+   */
   stream: MediaStream;
 }
 
@@ -124,6 +129,54 @@ export class SharerSession extends Emitter<SharerEvents> {
 
     this.emit('ready', session);
     return session;
+  }
+
+  /**
+   * Swap what is being shared, without interrupting anyone watching.
+   *
+   * `replaceTrack` changes the outgoing media on an established connection, so
+   * there is no new offer, no ICE, and no gap in the picture — viewers see the
+   * new screen appear in place of the old one.
+   *
+   * The alternative is stopping and starting again, which drops every viewer
+   * and makes each of them ask permission a second time. For the common case
+   * this exists for — realising you picked the wrong window — that is a
+   * disproportionate amount of ceremony.
+   */
+  async replaceStream(stream: MediaStream): Promise<void> {
+    const track = stream.getVideoTracks()[0];
+    if (track === undefined) {
+      this.emit('error', { message: 'That screen could not be shared' });
+      return;
+    }
+
+    const previous = this.#deps.stream;
+    this.#deps.stream = stream;
+
+    for (const { pc } of this.#peers.values()) {
+      const sender = pc.getSenders().find((s) => s.track?.kind === 'video');
+      if (sender === undefined) continue;
+      await sender.replaceTrack(track);
+      // The new track needs the same treatment as the old one: a fresh track
+      // carries none of the previous tuning.
+      await tuneScreenShare(track, sender);
+    }
+
+    // The OS can end this one too, and the old listener is attached to a track
+    // that no longer matters.
+    track.addEventListener('ended', () => {
+      this.emit('ended', { reason: 'Your device stopped the screen share' });
+      this.stop();
+    });
+
+    // Only after the swap has landed, so a failure leaves the old one running.
+    if (previous !== stream) {
+      previous.getTracks().forEach((t) => {
+        t.stop();
+      });
+    }
+
+    this.emit('streamChanged', { stream });
   }
 
   /** Let a waiting viewer in. Until this, nothing has been sent to them. */
