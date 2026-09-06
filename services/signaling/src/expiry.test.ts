@@ -28,15 +28,15 @@ function claims(now: number): HostTokenClaims {
   };
 }
 
-test('a session with nobody in it is swept once it goes idle', () => {
+test('a session nobody has claimed is swept once the unclaimed grace period passes', () => {
   const now = Date.now();
   const store = new InMemorySessionStore();
   store.add(new LiveSession(claims(now), fakeSocket(), now));
 
-  assert.deepEqual(store.sweep(now + SESSION_TIMEOUTS.idleMs - 1_000), []);
+  assert.deepEqual(store.sweep(now + SESSION_TIMEOUTS.unclaimedMs - 1_000), []);
   assert.equal(store.size, 1, 'not yet');
 
-  const swept = store.sweep(now + SESSION_TIMEOUTS.idleMs + 1_000);
+  const swept = store.sweep(now + SESSION_TIMEOUTS.unclaimedMs + 1_000);
   assert.equal(swept.length, 1);
   assert.equal(store.size, 0);
 });
@@ -53,7 +53,7 @@ test('a swept session takes its join code and link with it', () => {
   assert.ok(store.byCode(session.joinCode));
   assert.ok(store.byToken(session.joinToken));
 
-  store.sweep(now + SESSION_TIMEOUTS.idleMs + 1_000);
+  store.sweep(now + SESSION_TIMEOUTS.unclaimedMs + 1_000);
 
   assert.equal(store.byCode(session.joinCode), undefined, 'the code is still resolvable');
   assert.equal(store.byToken(session.joinToken), undefined, 'the link still works');
@@ -76,6 +76,34 @@ test('an occupied session is left alone, however long it runs', () => {
   assert.deepEqual(store.sweep(now + 60 * 60 * 1_000), [], 'someone is watching');
 });
 
+test('a session that was claimed and emptied is swept sooner than an unclaimed one', () => {
+  const now = Date.now();
+  const store = new InMemorySessionStore();
+  const session = new LiveSession(claims(now), fakeSocket(), now);
+  const viewer = session.addViewer({
+    deviceLabel: 'Windows · Chrome',
+    approximateLocation: undefined,
+    joinedVia: 'code',
+    socket: fakeSocket(),
+    now,
+  });
+  session.removeViewer(viewer.id, now);
+  store.add(session);
+
+  // Past the idle grace period but well short of the unclaimed one — only
+  // correct if the store is asking each session the right question.
+  assert.equal(store.sweep(now + SESSION_TIMEOUTS.idleMs + 1_000).length, 1);
+});
+
+test('sweep timeouts can be overridden, for a store that cannot wait minutes', () => {
+  const now = Date.now();
+  const store = new InMemorySessionStore();
+  store.add(new LiveSession(claims(now), fakeSocket(), now));
+
+  const swept = store.sweep(now + 2_000, { idleMs: 500, unclaimedMs: 1_000 });
+  assert.equal(swept.length, 1, 'the override applied, not the multi-minute default');
+});
+
 test('the hard ceiling applies even to a busy session', () => {
   const now = Date.now();
   const store = new InMemorySessionStore();
@@ -95,7 +123,7 @@ test('the hard ceiling applies even to a busy session', () => {
 test('the sweeper reports what it removed, so both sides can be told', async () => {
   // A session that vanishes without a word leaves the viewer on a frozen
   // frame, which is indistinguishable from a hung connection.
-  const now = Date.now() - SESSION_TIMEOUTS.idleMs - 1_000;
+  const now = Date.now() - SESSION_TIMEOUTS.unclaimedMs - 1_000;
   const store = new InMemorySessionStore();
   store.add(new LiveSession(claims(now), fakeSocket(), now));
 

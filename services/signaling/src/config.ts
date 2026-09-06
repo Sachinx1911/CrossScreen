@@ -90,6 +90,35 @@ export const config = {
     1_000,
     10 * 60 * 1_000,
   ),
+  /**
+   * How long an *active* session (one that has had a viewer) is kept once it
+   * drops back to zero. Same reasoning as `joinRequestTimeoutMs`: defaulted
+   * from the protocol constant, overridable so a test does not wait 5 real
+   * minutes to see a session expire.
+   */
+  sessionIdleTimeoutMs: intFromEnv(
+    'SESSION_IDLE_TIMEOUT_MS',
+    SESSION_TIMEOUTS.idleMs,
+    1_000,
+    24 * 60 * 60 * 1_000,
+  ),
+  /**
+   * How long a session nobody has ever joined is kept — longer than the idle
+   * timeout by default, because a session waiting to be found and one that
+   * was found and emptied are different situations (see `LiveSession.isExpired`).
+   */
+  sessionUnclaimedTimeoutMs: intFromEnv(
+    'SESSION_UNCLAIMED_TIMEOUT_MS',
+    SESSION_TIMEOUTS.unclaimedMs,
+    1_000,
+    24 * 60 * 60 * 1_000,
+  ),
+  /**
+   * How often the sweeper checks for expired sessions. Independent of the
+   * timeouts above on purpose — turning `SESSION_IDLE_TIMEOUT_MS` down for a
+   * test would be pointless if the check only ran every 30 seconds regardless.
+   */
+  sessionSweepIntervalMs: intFromEnv('SESSION_SWEEP_INTERVAL_MS', 30_000, 100, 5 * 60 * 1_000),
   // LOG_LEVEL is deliberately absent. It is read in log.ts instead, because
   // this module logs its own rejections and cannot import a logger that
   // imports it back. A `logLevel` here would be read by nothing and changing

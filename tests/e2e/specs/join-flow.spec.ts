@@ -389,6 +389,35 @@ test('the host leaving ends the session for the viewer', async ({ browser }) => 
   await guest.close();
 });
 
+test('a session left claimed and empty expires, and tells the host why in plain language', async ({
+  browser,
+}) => {
+  // SESSION_IDLE_TIMEOUT_MS and SESSION_SWEEP_INTERVAL_MS are turned down for
+  // this suite (see playwright.config.ts) so this does not cost 5 real
+  // minutes. This is the path that used to leak the raw protocol word
+  // "idle_timeout" straight to the host — the viewer side already translated
+  // it into a sentence, the host side just passed the enum through.
+  const host = await browser.newContext();
+  const guest = await browser.newContext();
+  const sharer = await host.newPage();
+  const viewer = await guest.newPage();
+  failOnConsoleErrors(viewer, consoleErrors);
+
+  const { link } = await startSharing(sharer);
+  await viewer.goto(new URL(link).pathname);
+  await sharer.getByRole('button', { name: 'Allow' }).click();
+  await expect(viewer.locator('video')).toBeVisible();
+
+  await guest.close();
+
+  await expect(sharer.getByText('The session ended because nobody was watching.')).toBeVisible({
+    timeout: 10_000,
+  });
+  await expect(sharer.locator('body')).not.toContainText('idle_timeout');
+
+  await host.close();
+});
+
 test('joining by typed code works the same as by link', async ({ browser }) => {
   const host = await browser.newContext();
   const guest = await browser.newContext();

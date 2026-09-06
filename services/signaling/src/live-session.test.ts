@@ -136,13 +136,50 @@ test('a session is waiting until someone is approved, then active', () => {
   assert.equal(session.state, 'active');
 });
 
-test('a session with no viewers expires after the idle timeout', () => {
+test('a session nobody has ever joined gets the unclaimed grace period, not the idle one', () => {
+  // Never claimed: nobody has been asked yet. Judging it as "idle" would
+  // expire it under a host who is still typing the link to send.
   const now = Date.now();
   const session = new LiveSession(claims(now), fakeSocket(), now);
 
   assert.equal(session.isExpired(now), false);
+  assert.equal(session.isExpired(now + 6 * 60 * 1000), false, 'idleMs alone is not enough here');
+  assert.equal(session.isExpired(now + 11 * 60 * 1000), true, 'unclaimed for 10 minutes');
+});
+
+test('a session that was claimed and then emptied gets the shorter idle grace period', () => {
+  const now = Date.now();
+  const session = new LiveSession(claims(now), fakeSocket(), now);
+  const viewer = session.addViewer({
+    deviceLabel: 'Windows · Chrome',
+    approximateLocation: undefined,
+    joinedVia: 'code',
+    socket: fakeSocket(),
+    now,
+  });
+  session.removeViewer(viewer.id, now);
+
   assert.equal(session.isExpired(now + 4 * 60 * 1000), false);
-  assert.equal(session.isExpired(now + 6 * 60 * 1000), true, 'idle for 5 minutes');
+  assert.equal(session.isExpired(now + 6 * 60 * 1000), true, 'idle for 5 minutes, not 10');
+});
+
+test('the unclaimed and idle grace periods are each overridable independently', () => {
+  const now = Date.now();
+  const unclaimed = new LiveSession(claims(now), fakeSocket(), now);
+  const claimedThenEmptied = new LiveSession(claims(now), fakeSocket(), now);
+  const viewer = claimedThenEmptied.addViewer({
+    deviceLabel: 'Windows · Chrome',
+    approximateLocation: undefined,
+    joinedVia: 'code',
+    socket: fakeSocket(),
+    now,
+  });
+  claimedThenEmptied.removeViewer(viewer.id, now);
+
+  const timeouts = { idleMs: 1_000, unclaimedMs: 2_000 };
+  assert.equal(unclaimed.isExpired(now + 1_500, timeouts), false, 'not unclaimed-expired yet');
+  assert.equal(unclaimed.isExpired(now + 2_500, timeouts), true);
+  assert.equal(claimedThenEmptied.isExpired(now + 1_500, timeouts), true, 'idle grace is shorter');
 });
 
 test('a viewer keeps the session alive, and leaving restarts the clock', () => {

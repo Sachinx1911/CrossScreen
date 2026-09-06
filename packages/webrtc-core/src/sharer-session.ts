@@ -277,7 +277,18 @@ export class SharerSession extends Emitter<SharerEvents> {
     });
 
     signaling.on('session.ended', (message) => {
-      this.emit('ended', { reason: message.reason });
+      // Reached when the sweeper ends a session the host is still connected
+      // to but nobody is watching — 'host_ended' never arrives here, since a
+      // host who ends their own share already knows it without being told.
+      // The raw reason travelled as far as this event's `string` field
+      // unchanged for a while, which means the host briefly saw the literal
+      // word "idle_timeout" where the viewer already saw a full sentence.
+      const reasons = {
+        host_ended: 'The host ended the session.',
+        expired: 'This session has expired.',
+        idle_timeout: 'The session ended because nobody was watching.',
+      } as const;
+      this.emit('ended', { reason: reasons[message.reason] });
       this.stop();
     });
 

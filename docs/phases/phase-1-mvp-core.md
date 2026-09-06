@@ -121,6 +121,15 @@ Design tokens extracted from the mockup (see [`../ui-scope.md`](../ui-scope.md)
 status dot with words beside it. **Light and dark palettes both**, even though
 the mockup shows only light — the viewer is often used at night.
 
+> **Delivered without the package, 2026-09-06.** The tokens exist — both
+> palettes, the session-code styling, the status dot — but in each app's own
+> `theme.css` and its own small `Button`/`Card`/`StatusDot` set rather than a
+> shared `packages/ui`. Deliberate, not a shortcut: the two apps' components
+> are still small enough that a shared package would be a folder with an
+> import path, and freezing the abstraction now, before a second real
+> consumer exists, is how the wrong one gets frozen. Revisit if Android
+> (Phase 4) needs the same tokens, or if the two apps' copies visibly drift.
+
 ### 1.8 — Web app · `apps/web`
 
 Landing · Join (code entry and paste link) · Viewer · a minimal Settings.
@@ -165,6 +174,28 @@ session expired, host ends mid-session.
 >
 > Distribution still waits on code signing (ADR-0010), so this is the
 > better-experience path rather than the way in.
+>
+> **The remaining ui-scope.md §2 screens landed, 2026-09-06:** desktop Join
+> (the app could share but not watch until now), Recent Sessions
+> (`localStorage`, both apps), the system-audio toggle (C4 — off by default,
+> disabled where the platform cannot deliver it), and a genuinely minimal
+> Settings (reset the safety notice, clear the session history — nothing
+> else exists yet to configure). Every row in that table is now built.
+>
+> **Two spec'd-but-silent timeouts found and fixed the same day.** Both
+> `SESSION_TIMEOUTS.joinRequestMs` and `.unclaimedMs` were defined in
+> `packages/protocol` and documented in this file's own §1.3, but nothing in
+> `services/signaling` ever read them: a pending request nobody answered
+> waited forever, and a session nobody had joined yet was already being
+> timed against the 5-minute _idle_ grace period instead of the 10-minute
+> _unclaimed_ one it was given for exactly this reason. Fixing the second one
+> surfaced a third, unrelated bug it had been masking: `SharerSession` passed
+> the raw wire enum (`idle_timeout`, `expired`) straight into the host's
+> status message instead of translating it, the one thing `ViewerSession`
+> already did correctly for the same event. All three are now covered by
+> tests that would have caught them — two new e2e specs joined the other two
+> failure paths named in §1.10 above, plus targeted unit tests on
+> `LiveSession` and `config.ts`'s new overrides.
 
 ### 1.11 — ESLint
 
@@ -177,10 +208,10 @@ Added once there is enough code for it to earn its keep (Phase 0 debt).
 | 1   | A stranger can be walked through it without explanation   | ⬜ needs a real person                                                                           |
 | 2   | **No SDP is exchanged before the host approves**          | ✅ 23 tests, unit and over the wire                                                              |
 | 3   | Every error surfaces in plain language                    | ✅ asserted, including that no jargon leaks                                                      |
-| 4   | A session expires on schedule and both sides are told why | ✅ 7 tests, including that the code stops resolving                                              |
+| 4   | A session expires on schedule and both sides are told why | ✅ 10 unit tests + 1 e2e; the host's own message was wrong until 2026-09-06 (see 1.10)           |
 | 5   | The viewer works across the browser matrix                | ⚠️ Chromium verified; Firefox and WebKit inconclusive — see [`../dev-setup.md`](../dev-setup.md) |
 | 6   | Text in a shared spreadsheet is legible at 1080p          | ⬜ needs a real screen                                                                           |
-| 7   | Playwright covers the loop and the failure paths          | ✅ 8 tests                                                                                       |
+| 7   | Playwright covers the loop and the failure paths          | ✅ 16 tests — all four named failure paths now covered                                           |
 | 8   | macOS and Linux builds compile, labelled untested         | ✅ macOS capture verified; Linux outstanding                                                     |
 
 ## Exit criteria

@@ -23,6 +23,12 @@ const LOAD_CONFIG = `import('${configUrl}').then((m) => console.log(m.config.por
 
 const LOAD_JOIN_TIMEOUT = `import('${configUrl}').then((m) => console.log(m.config.joinRequestTimeoutMs));`;
 
+const LOAD_SESSION_TIMEOUTS = `import('${configUrl}').then((m) => console.log(JSON.stringify({
+  idle: m.config.sessionIdleTimeoutMs,
+  unclaimed: m.config.sessionUnclaimedTimeoutMs,
+  sweep: m.config.sessionSweepIntervalMs,
+})));`;
+
 const VALID_SECRET = 'a-signaling-test-secret-long-enough-ok';
 
 /**
@@ -117,6 +123,24 @@ test('the join-request timeout defaults to the protocol constant', () => {
 test('the join-request timeout can be turned down, for a test that cannot wait a minute', () => {
   const { output } = loadWith(undefined, { JOIN_REQUEST_TIMEOUT_MS: '4000' }, LOAD_JOIN_TIMEOUT);
   assert.equal(output.trim(), '4000');
+});
+
+test('the session timeouts default to the protocol constants', () => {
+  const { output } = loadWith(undefined, {}, LOAD_SESSION_TIMEOUTS);
+  assert.deepEqual(JSON.parse(output.trim()), { idle: 300_000, unclaimed: 600_000, sweep: 30_000 });
+});
+
+test('each session timeout can be turned down independently', () => {
+  const { output } = loadWith(
+    undefined,
+    {
+      SESSION_IDLE_TIMEOUT_MS: '4000',
+      SESSION_UNCLAIMED_TIMEOUT_MS: '8000',
+      SESSION_SWEEP_INTERVAL_MS: '500',
+    },
+    LOAD_SESSION_TIMEOUTS,
+  );
+  assert.deepEqual(JSON.parse(output.trim()), { idle: 4000, unclaimed: 8000, sweep: 500 });
 });
 
 test('the refusal names the variable and the value', () => {

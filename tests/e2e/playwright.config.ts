@@ -100,6 +100,12 @@ export default defineConfig({
         // longest pending-viewer wait, so nothing else in this suite times out
         // by accident.
         JOIN_REQUEST_TIMEOUT_MS: '4000',
+        // Same reasoning, for the session-idle-expiry test: real defaults are
+        // 5 minutes and 30 seconds. No other test in this suite leaves a
+        // session claimed-and-empty for more than a moment, so this is safe
+        // to turn down for the whole run rather than only one test.
+        SESSION_IDLE_TIMEOUT_MS: '3000',
+        SESSION_SWEEP_INTERVAL_MS: '500',
       },
     },
     {

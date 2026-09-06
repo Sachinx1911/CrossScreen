@@ -51,6 +51,15 @@ export class LiveSession {
   /** When the last viewer left, so the idle timeout has something to measure. */
   emptySince: number | undefined;
 
+  /**
+   * Whether any viewer has ever been added — pending counts, this is about
+   * whether the session has been *found*, not watched. Distinguishes a
+   * session nobody has discovered yet from one that was active and emptied,
+   * which is why `SESSION_TIMEOUTS` gives the two different grace periods
+   * (`unclaimedMs` vs `idleMs`) instead of one.
+   */
+  #everClaimed = false;
+
   readonly #viewers = new Map<string, Viewer>();
 
   constructor(claims: HostTokenClaims, hostSocket: WebSocket, now = Date.now()) {
@@ -100,6 +109,7 @@ export class LiveSession {
     };
     this.#viewers.set(viewer.id, viewer);
     this.emptySince = undefined;
+    this.#everClaimed = true;
     return viewer;
   }
 
@@ -177,12 +187,19 @@ export class LiveSession {
     return this.#viewers.get(participantId)?.socket;
   }
 
-  isExpired(now = Date.now()): boolean {
+  isExpired(
+    now = Date.now(),
+    timeouts: Pick<typeof SESSION_TIMEOUTS, 'idleMs' | 'unclaimedMs'> = SESSION_TIMEOUTS,
+  ): boolean {
     if (now >= this.expiresAt) return true;
-    if (this.emptySince !== undefined && now - this.emptySince >= SESSION_TIMEOUTS.idleMs) {
-      return true;
-    }
-    return false;
+    if (this.emptySince === undefined) return false;
+
+    // A session nobody has found yet gets longer to be found than one that
+    // was watched and then emptied — the two are different situations, and
+    // treating a fresh session as already "idle" would expire it under
+    // people who are still reading the link they were just sent.
+    const graceMs = this.#everClaimed ? timeouts.idleMs : timeouts.unclaimedMs;
+    return now - this.emptySince >= graceMs;
   }
 
   /**

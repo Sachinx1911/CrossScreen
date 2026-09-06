@@ -23,7 +23,10 @@ export interface SessionStore {
   byToken(joinToken: string): LiveSession | undefined;
   remove(sessionId: string): void;
   /** Drop expired sessions, returning those removed so callers can notify. */
-  sweep(now?: number): LiveSession[];
+  sweep(
+    now?: number,
+    timeouts?: Pick<typeof SESSION_TIMEOUTS, 'idleMs' | 'unclaimedMs'>,
+  ): LiveSession[];
   /** Reject pending viewers who have waited past the join-request timeout. */
   expireStaleJoinRequests(timeoutMs: number, now?: number): StaleJoinRequest[];
   readonly size: number;
@@ -70,10 +73,13 @@ export class InMemorySessionStore implements SessionStore {
     this.#byToken.delete(session.joinToken);
   }
 
-  sweep(now = Date.now()): LiveSession[] {
+  sweep(
+    now = Date.now(),
+    timeouts: Pick<typeof SESSION_TIMEOUTS, 'idleMs' | 'unclaimedMs'> = SESSION_TIMEOUTS,
+  ): LiveSession[] {
     const expired: LiveSession[] = [];
     for (const session of this.#byId.values()) {
-      if (session.isExpired(now)) expired.push(session);
+      if (session.isExpired(now, timeouts)) expired.push(session);
     }
     for (const session of expired) this.remove(session.sessionId);
     return expired;
@@ -101,9 +107,10 @@ export function startSweeper(
   store: SessionStore,
   onExpired: (session: LiveSession) => void,
   intervalMs = 30_000,
+  timeouts: Pick<typeof SESSION_TIMEOUTS, 'idleMs' | 'unclaimedMs'> = SESSION_TIMEOUTS,
 ): () => void {
   const timer = setInterval(() => {
-    for (const session of store.sweep()) {
+    for (const session of store.sweep(Date.now(), timeouts)) {
       session.endedReason = session.emptySince === undefined ? 'expired' : 'idle_timeout';
       onExpired(session);
     }

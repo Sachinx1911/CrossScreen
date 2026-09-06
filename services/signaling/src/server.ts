@@ -95,24 +95,29 @@ wss.on('connection', (socket: WebSocket, req) => {
 
 // Sessions have to expire on a timer as well as on disconnect: a host whose
 // laptop slept, or a session nobody ever joined, produces no event to react to.
-startSweeper(store, (session) => {
-  for (const viewer of session.viewers) {
-    send(viewer.socket, {
+startSweeper(
+  store,
+  (session) => {
+    for (const viewer of session.viewers) {
+      send(viewer.socket, {
+        type: 'session.ended',
+        reason: session.endedReason === 'expired' ? 'expired' : 'idle_timeout',
+      });
+    }
+    send(session.hostSocket, {
       type: 'session.ended',
       reason: session.endedReason === 'expired' ? 'expired' : 'idle_timeout',
     });
-  }
-  send(session.hostSocket, {
-    type: 'session.ended',
-    reason: session.endedReason === 'expired' ? 'expired' : 'idle_timeout',
-  });
-  recorder.sessionEvent({
-    sessionId: session.sessionId,
-    event: 'ended',
-    detail: { reason: session.endedReason ?? 'expired' },
-  });
-  log.info('session.expired', { sessionId: session.sessionId, reason: session.endedReason });
-});
+    recorder.sessionEvent({
+      sessionId: session.sessionId,
+      event: 'ended',
+      detail: { reason: session.endedReason ?? 'expired' },
+    });
+    log.info('session.expired', { sessionId: session.sessionId, reason: session.endedReason });
+  },
+  config.sessionSweepIntervalMs,
+  { idleMs: config.sessionIdleTimeoutMs, unclaimedMs: config.sessionUnclaimedTimeoutMs },
+);
 
 // A per-viewer clock, not a per-session one, so it runs on its own schedule
 // rather than piggybacking on the 30s session sweep — a request left pending
