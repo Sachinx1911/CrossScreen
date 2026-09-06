@@ -1,58 +1,23 @@
 /**
- * Sharer configuration for Phase 0.5.
+ * Where the services are, for the desktop app.
  *
- * Read from Vite build-time environment so the cross-network test can point at
- * whatever URL cloudflared hands out on a given day. TURN credentials living
- * here is a **disclosed shortcut for this phase only** — Phase 2 replaces it
- * with `GET /api/v1/ice-servers` issuing short-lived credentials (ADR-0004).
+ * Unlike the web app there is no origin to fall back to — the renderer is
+ * served from `app://bundle` — so these always have to be resolved. The main
+ * process passes an override as a query parameter when `.tunnel-url` exists,
+ * which is what makes the cross-network test need no rebuild.
  */
 
 const env = import.meta.env as Record<string, string | undefined>;
 
-/**
- * Signaling URL, in order of preference:
- *
- *   1. the `signaling` query parameter, which the main process sets at launch
- *   2. the build-time environment
- *   3. a local server
- *
- * The query parameter exists so the cross-network test does not need a
- * rebuild. A tunnel hostname changes on every restart, and baking it in at
- * build time made "start the tunnel" a four-step ritual.
- */
+function fromQuery(name: string): string | undefined {
+  const value = new URLSearchParams(location.search).get(name);
+  return value === null || value === '' ? undefined : value;
+}
+
 export function signalingUrl(): string {
-  const fromQuery = new URLSearchParams(location.search).get('signaling');
-  if (fromQuery !== null && fromQuery !== '') return fromQuery;
-  return env['VITE_SIGNALING_URL'] ?? 'ws://127.0.0.1:8787';
+  return fromQuery('signaling') ?? env['VITE_SIGNALING_URL'] ?? 'ws://127.0.0.1:8787';
 }
 
-export function iceServers(): RTCIceServer[] {
-  const servers: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
-
-  const urls = env['VITE_TURN_URLS'];
-  const username = env['VITE_TURN_USERNAME'];
-  const credential = env['VITE_TURN_CREDENTIAL'];
-
-  if (urls !== undefined && username !== undefined && credential !== undefined) {
-    servers.push({ urls: urls.split(',').map((u) => u.trim()), username, credential });
-  }
-  return servers;
+export function apiBaseUrl(): string {
+  return fromQuery('api') ?? env['VITE_API_URL'] ?? 'http://127.0.0.1:8788';
 }
-
-/** Phase 0.5 exit criterion 4: prove the relay path independently of P2P. */
-export function forceRelay(): boolean {
-  return env['VITE_FORCE_RELAY'] === '1';
-}
-
-/**
- * Starts sharing without waiting for a click.
- *
- * For automated local verification only — a real sharer must always be an
- * explicit user action, and Phase 1 adds the source picker and the first-share
- * safety notice in front of it.
- */
-export function autoStart(): boolean {
-  return env['VITE_AUTOSTART'] === '1';
-}
-
-export const STATS_INTERVAL_MS = 2000;

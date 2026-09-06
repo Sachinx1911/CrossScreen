@@ -6,6 +6,10 @@
     "lib": ["ES2023"],
     "types": ["node"]
   },
-  "include": ["src/main/**/*.ts"],
-  "references": [{ "path": "../../packages/protocol" }]
+  "include": ["src/main/**/*.ts", "src/main/**/*.cts"],
+  "references": [
+    {
+      "path": "../../packages/protocol"
+    }
+  ]
 }

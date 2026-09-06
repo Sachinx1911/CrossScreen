@@ -14,12 +14,20 @@
     "verify:renderer": "electron scripts/verify-renderer.mjs"
   },
   "dependencies": {
+    "@crossscreen/capture": "workspace:*",
     "@crossscreen/protocol": "workspace:*",
-    "@crossscreen/webrtc-core": "workspace:*"
+    "@crossscreen/webrtc-core": "workspace:*",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^22.10.2",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@vitejs/plugin-react": "^6.1.1",
     "electron": "^44.2.0",
+    "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3",
     "vite": "^8.2.2"
   }

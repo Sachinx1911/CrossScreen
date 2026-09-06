@@ -9,7 +9,19 @@
     "composite": false,
     "declaration": false,
     "declarationMap": false,
-    "incremental": false
+    "incremental": false,
+    "jsx": "react-jsx"
   },
-  "include": ["src/renderer/**/*.ts"]
+  "include": ["src/renderer/**/*.ts", "src/renderer/**/*.tsx"],
+  "references": [
+    {
+      "path": "../../packages/protocol"
+    },
+    {
+      "path": "../../packages/webrtc-core"
+    },
+    {
+      "path": "../../packages/capture"
+    }
+  ]
 }

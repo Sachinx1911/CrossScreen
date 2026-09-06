@@ -147,13 +147,13 @@ session expired, host ends mid-session.
 > real screen, because the automation sandbox refuses the capture permission —
 > every other part of the path is the real one.
 >
-> **Known gap while this phase is in flight.** The Electron sharer still speaks
-> the walking skeleton's protocol — it connects and starts negotiating, where
-> the server now expects `session.host.attach` with a host token first. It is
-> therefore broken against the current signaling service until slice 1.9
-> migrates it onto `SharerSession`. This is a deliberate ordering, not an
-> oversight: ADR-0010 makes the browser the primary path, so it was built
-> first, and the desktop app follows it onto the same shared session object.
+> **Slice 1.9 done, 2026-09-06.** The desktop app runs on the same
+> `SharerSession` as the browser, so the approval ordering cannot drift between
+> the two shells. It also gained the source picker, which is the thing it
+> exists for: a browser can only offer whatever dialog it draws.
+>
+> Distribution still waits on code signing (ADR-0010), so this is the
+> better-experience path rather than the way in.
 
 ### 1.11 — ESLint
 

@@ -8,112 +8,18 @@
       means something and this policy can stay tight. On a file:// page 'self'
       matches nothing and a policy like this blocks the app's own bundle.
 
-      connect-src stays open to ws/wss because the signaling URL is
-      configuration, not a fixed host.
+      connect-src stays open to ws/wss and http/https because the signaling and
+      API URLs are configuration, not fixed hosts.
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; connect-src ws: wss:; object-src 'none'; base-uri 'none'; form-action 'none'"
+      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src ws: wss: http: https:; object-src 'none'; base-uri 'none'; form-action 'none'"
     />
-    <title>CrossScreen — Sharer (skeleton)</title>
-    <style>
-      :root {
-        color-scheme: dark;
-        --bg: #0b0d10;
-        --fg: #e8eaed;
-        --muted: #9aa3ad;
-        --accent: #2f6fed;
-      }
-      * {
-        box-sizing: border-box;
-      }
-      body {
-        margin: 0;
-        padding: 24px;
-        background: var(--bg);
-        color: var(--fg);
-        font:
-          14px/1.6 system-ui,
-          sans-serif;
-      }
-      h1 {
-        font-size: 16px;
-        margin: 0 0 4px;
-      }
-      p.sub {
-        color: var(--muted);
-        margin: 0 0 20px;
-      }
-      button {
-        background: var(--accent);
-        color: #fff;
-        border: 0;
-        border-radius: 8px;
-        padding: 10px 18px;
-        font-size: 14px;
-        font-weight: 600;
-        cursor: pointer;
-      }
-      button:disabled {
-        opacity: 0.5;
-        cursor: default;
-      }
-      .row {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        margin-bottom: 16px;
-      }
-      .dot {
-        width: 9px;
-        height: 9px;
-        border-radius: 50%;
-        background: var(--muted);
-      }
-      .dot.live {
-        background: #2fbf71;
-      }
-      .dot.bad {
-        background: #e5534b;
-      }
-      video {
-        width: 100%;
-        max-height: 320px;
-        object-fit: contain;
-        background: #000;
-        border-radius: 8px;
-        margin-bottom: 12px;
-      }
-      pre {
-        background: #12161b;
-        border: 1px solid #1c2126;
-        border-radius: 8px;
-        padding: 10px 12px;
-        color: var(--muted);
-        font-size: 12px;
-        margin: 0;
-        white-space: pre-wrap;
-        min-height: 3em;
-      }
-    </style>
+    <meta name="color-scheme" content="light dark" />
+    <title>CrossScreen</title>
   </head>
   <body>
-    <h1>CrossScreen — walking skeleton</h1>
-    <p class="sub">Phase 0.5. Proves capture to WebRTC to a remote browser. No UI beyond this.</p>
-
-    <div class="row">
-      <span class="dot" id="dot"></span>
-      <span id="status">Idle</span>
-    </div>
-
-    <div class="row">
-      <button id="share">Start Sharing</button>
-      <button id="stop" disabled>Stop</button>
-    </div>
-
-    <video id="preview" autoplay playsinline muted></video>
-    <pre id="stats">no connection yet</pre>
-
-    <script type="module" src="./main.ts"></script>
+    <div id="root"></div>
+    <script type="module" src="./main.tsx"></script>
   </body>
 </html>

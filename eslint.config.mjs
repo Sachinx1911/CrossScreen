@@ -94,7 +94,7 @@ export default tseslint.config(
   // tsconfig.json in that app covers the renderer. Point the type-aware rules
   // at the right program explicitly.
   {
-    files: ['apps/desktop/src/main/**/*.ts'],
+    files: ['apps/desktop/src/main/**/*.ts', 'apps/desktop/src/main/**/*.cts'],
     languageOptions: {
       parserOptions: {
         projectService: false,
@@ -102,6 +102,14 @@ export default tseslint.config(
         tsconfigRootDir: import.meta.dirname,
       },
     },
+  },
+
+  // A CommonJS preload has to be written as CommonJS. Electron only loads an
+  // ESM preload when `sandbox: false`, and giving up the sandbox to gain an
+  // import statement is a bad trade.
+  {
+    files: ['**/*.cts'],
+    rules: { '@typescript-eslint/no-require-imports': 'off' },
   },
 
   // Standalone Node scripts belong to no build program, so they get plain

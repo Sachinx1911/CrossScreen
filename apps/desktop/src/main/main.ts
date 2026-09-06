@@ -1,12 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { app, BrowserWindow, desktopCapturer, session } from 'electron';
+import { app, BrowserWindow } from 'electron';
 
+import { installCaptureBridge } from './capture-bridge.ts';
 import { RENDERER_ENTRY, registerRendererScheme, serveRendererFrom } from './renderer-protocol.ts';
 
 /**
- * Electron main process — Phase 0.5.
+ * Electron main process.
  *
  * This file is the whole reason ADR-0002 chose Electron over Tauri, so it is
  * worth being explicit about what it buys.
@@ -51,9 +52,10 @@ function createWindow(): BrowserWindow {
     backgroundColor: '#0b0d10',
     title: 'CrossScreen',
     webPreferences: {
-      // No preload and no IPC are needed: setDisplayMediaRequestHandler lets
-      // the renderer call getDisplayMedia() directly, so the renderer stays a
-      // plain, fully isolated web page.
+      // The preload is the renderer's only route to the main process, and it
+      // exposes exactly two functions taking plain data. Everything else stays
+      // shut: no Node, no require, full context isolation.
+      preload: join(here, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -82,48 +84,11 @@ function createWindow(): BrowserWindow {
   return window;
 }
 
-/**
- * Grant screen capture requests.
- *
- * Phase 0.5 picks the first screen automatically so the skeleton has no UI to
- * get in the way. **Phase 1 replaces this with the real source picker** — the
- * user must choose what to share, and choosing for them is not acceptable in a
- * shipped product.
- */
-function installDisplayMediaHandler(): void {
-  session.defaultSession.setDisplayMediaRequestHandler(
-    (_request, callback) => {
-      desktopCapturer
-        .getSources({ types: ['screen'], fetchWindowIcons: false })
-        .then((sources) => {
-          const [screen] = sources;
-          if (screen === undefined) {
-            // Denying with an empty object surfaces in the renderer as a
-            // rejected promise, which is what the UI can act on.
-            callback({});
-            return;
-          }
-          console.info('[main] granting capture of', screen.name);
-          callback({ video: screen });
-        })
-        .catch((err: unknown) => {
-          console.error('[main] desktopCapturer failed', err);
-          callback({});
-        });
-    },
-    // Audio is out of scope until Phase 6, and is not uniformly available
-    // across platforms anyway — see docs/platform-matrix.md.
-    { useSystemPicker: false },
-  );
-}
-
-// Must happen before the app is ready, or the scheme is not privileged and
-// the renderer loses both its origin and its secure context.
 registerRendererScheme();
 
 void app.whenReady().then(() => {
   serveRendererFrom(join(here, '..', 'renderer'));
-  installDisplayMediaHandler();
+  installCaptureBridge();
   createWindow();
 
   app.on('activate', () => {

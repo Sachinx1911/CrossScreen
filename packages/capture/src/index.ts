@@ -9,3 +9,4 @@
 export * from './types.ts';
 export * from './detect.ts';
 export * from './browser-capture.ts';
+export * from './electron-capture.ts';
