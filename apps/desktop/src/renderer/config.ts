@@ -32,3 +32,9 @@ export function apiBaseUrl(): string {
 export function forceRelay(): boolean {
   return env['VITE_FORCE_RELAY'] === '1';
 }
+
+/** Where errors go (phase-2-reliability.md §2.6). `undefined` turns reporting off. */
+export function sentryDsn(): string | undefined {
+  const configured = env['VITE_SENTRY_DSN'];
+  return configured === undefined || configured === '' ? undefined : configured;
+}

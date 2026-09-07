@@ -11,6 +11,7 @@ import { ApiClient, qualityFrom, ViewerSession, type ViewerPhase } from '@crosss
 
 import { Button, Card, QualityBadge, StatusDot } from './components.tsx';
 import { apiBaseUrl, forceRelay, signalingUrl } from './config.ts';
+import { tagParticipant } from './sentry.ts';
 
 type Stage = 'entering-code' | ViewerPhase;
 
@@ -73,6 +74,9 @@ export function Joiner({ onBack }: { onBack: () => void }) {
     viewer.on('stream', setStream);
     viewer.on('connection', ({ state }) => {
       setConnection(state);
+    });
+    viewer.on('participant', ({ participantId }) => {
+      tagParticipant(participantId);
     });
     viewer.on('stats', (snapshot) => {
       setQuality(qualityFrom(snapshot));

@@ -457,25 +457,35 @@ run is a run half wasted.
 
 ## Environment variables
 
-| Variable                      | Used by        | Purpose                                                 |
-| ----------------------------- | -------------- | ------------------------------------------------------- |
-| `SIGNALING_PORT`              | signaling      | Listen port (default 8787)                              |
-| `SIGNALING_HOST`              | signaling      | Bind address (default 127.0.0.1)                        |
-| `LOG_LEVEL`                   | signaling      | `debug`, `info`, `warn`, `error`                        |
-| `SIGNALING_TARGET`            | web dev server | Where `/ws` is proxied (default `ws://127.0.0.1:8787`)  |
-| `VITE_SIGNALING_URL`          | web, desktop   | WebSocket URL of the signaling server                   |
-| `CLOUDFLARE_TURN_KEY_ID`      | api            | Long-term Cloudflare key; mints short-lived credentials |
-| `CLOUDFLARE_TURN_API_TOKEN`   | api            | Paired with the key id above                            |
-| `TURN_CREDENTIAL_TTL_SECONDS` | api            | How long a minted credential lasts (default 4 hours)    |
-| `VITE_FORCE_RELAY`            | desktop        | `1` pins ICE to relay only                              |
-| `VITE_AUTOSTART`              | desktop        | `1` starts sharing without a click                      |
-| `CROSSSCREEN_SIGNALING_URL`   | desktop main   | Overrides `.tunnel-url` at launch                       |
+| Variable                      | Used by               | Purpose                                                 |
+| ----------------------------- | --------------------- | ------------------------------------------------------- |
+| `SIGNALING_PORT`              | signaling             | Listen port (default 8787)                              |
+| `SIGNALING_HOST`              | signaling             | Bind address (default 127.0.0.1)                        |
+| `LOG_LEVEL`                   | signaling             | `debug`, `info`, `warn`, `error`                        |
+| `SIGNALING_TARGET`            | web dev server        | Where `/ws` is proxied (default `ws://127.0.0.1:8787`)  |
+| `VITE_SIGNALING_URL`          | web, desktop          | WebSocket URL of the signaling server                   |
+| `CLOUDFLARE_TURN_KEY_ID`      | api                   | Long-term Cloudflare key; mints short-lived credentials |
+| `CLOUDFLARE_TURN_API_TOKEN`   | api                   | Paired with the key id above                            |
+| `TURN_CREDENTIAL_TTL_SECONDS` | api                   | How long a minted credential lasts (default 4 hours)    |
+| `VITE_FORCE_RELAY`            | desktop               | `1` pins ICE to relay only                              |
+| `VITE_AUTOSTART`              | desktop               | `1` starts sharing without a click                      |
+| `CROSSSCREEN_SIGNALING_URL`   | desktop main          | Overrides `.tunnel-url` at launch                       |
+| `SENTRY_DSN`                  | api, signaling        | Where errors are reported; unset means logged only      |
+| `VITE_SENTRY_DSN`             | web, desktop renderer | Same, for the two browser-side surfaces                 |
 
 > **`VITE_AUTOSTART` shares your screen the moment the app opens.** It exists so
 > a scripted run does not need someone to press a button, and it is why the
 > capture and renderer probes can be automated. Do not leave it set in a
 > `.env.local` you use day to day: a sharer that starts without an explicit
 > action is the one thing this product must never be.
+
+**The desktop app's main process reads `SENTRY_DSN` as a raw OS environment
+variable, not from `.env.local`.** It is the only surface that does — main is
+compiled by plain `tsc`, not bundled by Vite, so there is no `import.meta.env`
+to read there, and nothing loads a `.env` file into it today
+(`CROSSSCREEN_SIGNALING_URL` is the existing precedent for this same
+limitation). The renderer's own `VITE_SENTRY_DSN` works exactly like
+`VITE_FORCE_RELAY` already does.
 
 **Changing the port takes two variables, not one.** `SIGNALING_PORT` moves the
 server; the viewer then reaches it either directly through `VITE_SIGNALING_URL`

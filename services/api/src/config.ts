@@ -109,4 +109,12 @@ export const config = {
     .split(',')
     .map((o) => o.trim())
     .filter((o) => o !== ''),
+
+  /**
+   * Where errors go (phase-2-reliability.md §2.6). Absent is allowed, the
+   * same way `databaseUrl` and `cloudflareTurnKeyId` are: without it, the
+   * service runs with error reporting off and says so once at startup,
+   * rather than a fresh clone needing a Sentry account to start at all.
+   */
+  sentryDsn: process.env['SENTRY_DSN'],
 } as const;

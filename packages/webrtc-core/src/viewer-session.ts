@@ -34,6 +34,8 @@ export interface ViewerEvents {
   connection: { state: ConnectionState };
   stats: ConnectionSnapshot;
   error: { message: string };
+  /** This viewer's own id, once known — see the `participantId` getter's own comment for what it is for. */
+  participant: { participantId: string };
 }
 
 export interface ViewerDependencies {
@@ -71,6 +73,17 @@ export class ViewerSession extends Emitter<ViewerEvents> {
    * pending queue and waiting on the host a second time (§2.3).
    */
   #resume: { participantId: string; participantToken: string } | undefined;
+  #participantId: string | undefined;
+
+  /**
+   * This viewer's own id, once the server has confirmed it. Never the
+   * session's internal id (architecture §7) — a UI that wants to correlate
+   * an error report with `connection_stats`/`session_events` uses this, not
+   * that, since every row already carries `participantId` too.
+   */
+  get participantId(): string | undefined {
+    return this.#participantId;
+  }
 
   constructor(deps: ViewerDependencies) {
     super();
@@ -185,6 +198,10 @@ export class ViewerSession extends Emitter<ViewerEvents> {
       const self = message.session.participants.find((p) => p.participantId === message.you);
       if (self?.state !== 'connected') {
         this.emit('phase', { phase: 'waiting-for-host' });
+      }
+      if (this.#participantId !== message.you) {
+        this.#participantId = message.you;
+        this.emit('participant', { participantId: message.you });
       }
     });
 

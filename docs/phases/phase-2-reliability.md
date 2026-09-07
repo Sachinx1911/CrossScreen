@@ -278,6 +278,64 @@ Errors from all three surfaces, with the session id attached so a report can
 be correlated with its stats. **Scrubbed:** no tokens, no join codes, no IP
 addresses, no screen content.
 
+> **2.6 done, 2026-09-07.** All four processes — `api`, `signaling`, the web
+> viewer, and the desktop app's main _and_ renderer processes — report to
+> Sentry when `SENTRY_DSN`/`VITE_SENTRY_DSN` is set, and run exactly as before
+> (logging only) when it is not, the same absent-is-fine pattern as
+> `DATABASE_URL` and `CLOUDFLARE_TURN_KEY_ID`.
+>
+> **Scrubbing is one function, not four copies of the same regex.**
+> `@crossscreen/observability`'s `scrubSentryEvent` walks `extra`, `contexts`,
+> `tags`, breadcrumb data, `request`, `user`, and the message/exception text
+> itself, dropping anything keyed like a secret and redacting bare join codes
+> and IP-shaped substrings wherever they appear — wired into every surface's
+> `beforeSend`, so there is one place this promise can be wrong instead of
+> four. `sendDefaultPii: false` is set explicitly everywhere too, rather than
+> trusted as a default. 10 unit tests in `scrub.test.ts` pin down each of
+> §2.6's three concrete promises, plus that scrubbing reaches nested objects
+> and breadcrumbs, not only the top level.
+>
+> **"With the session id attached" turned out to mean `participantId`, not
+> the internal session id** — `sessionSummarySchema`'s own doc comment says
+> plainly that a client is never handed the internal id (architecture §7), so
+> nothing client-side could tag a report with it even in principle. Every
+> `connection_stats`/`session_events` row already carries `participantId`
+> too (§2.4), which is what actually lets a report be correlated with the
+> data without crossing that boundary. Wired for the viewer surfaces (web,
+> desktop) via a new `participant` event on `ViewerSession`; **not wired for
+> the sharer surfaces** — the host's own id sits inside the host token's JWT
+> claims, undecoded client-side today, and decoding it just for a telemetry
+> tag felt like more new surface than this pass justified. Worth adding if
+> per-report correlation on the sharer side is ever actually needed.
+>
+> Two real catch boundaries per Node service — the Fastify error handler
+> (new; nothing was logging a route handler throwing before this, with
+> `logger: false` set) and the top-level `handleMessage` catch in signaling —
+> call `Sentry.captureException` directly with the real `Error` object.
+> Everywhere else, every existing `log.error(...)` call also reaches Sentry
+> via a decorator on `Logger.error` in each service's own `log.ts`, so no
+> other call site needed touching — and since `Logger.error` takes an event
+> name and a field bag rather than an `Error`, those go through
+> `captureMessage`, without a stack trace. Also new: both services now catch
+> `uncaughtException`/`unhandledRejection` at the process level, which
+> nothing did before — either would have crashed, or been silently dropped,
+> with no record anywhere.
+>
+> **Not wired:** the Electron `@sentry/electron/preload` bridge that would
+> correlate main-process and renderer-process events into one Electron
+> "session" — each process reports independently instead, which loses that
+> correlation and nothing else.
+>
+> **Not verified against a real Sentry project.** Everything above is proven
+> at the unit level — the scrubbing, the one-time-per-connected-event guard,
+> every surface's `initSentry` reading its DSN correctly — but nothing here
+> has an actual DSN and watched an event land in a real Sentry dashboard,
+> the way the TURN credentials in §2.1 were proven against a real Cloudflare
+> account. That is the next honest step before this line is called proven
+> rather than merely wired: set `SENTRY_DSN`/`VITE_SENTRY_DSN` on all four
+> surfaces against one real project and confirm a deliberately thrown error
+> from each surface arrives, scrubbed.
+
 ## Exit criteria
 
 1. Walking from Wi-Fi to mobile data recovers in under 5 seconds without

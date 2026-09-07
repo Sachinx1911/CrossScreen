@@ -15,8 +15,10 @@
   },
   "dependencies": {
     "@crossscreen/capture": "workspace:*",
+    "@crossscreen/observability": "workspace:*",
     "@crossscreen/protocol": "workspace:*",
     "@crossscreen/webrtc-core": "workspace:*",
+    "@sentry/electron": "^7.18.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },

@@ -14,7 +14,9 @@
   "dependencies": {
     "@crossscreen/db": "workspace:*",
     "@crossscreen/logging": "workspace:*",
+    "@crossscreen/observability": "workspace:*",
     "@crossscreen/protocol": "workspace:*",
+    "@sentry/node": "^10.73.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {

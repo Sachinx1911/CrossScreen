@@ -5,6 +5,11 @@ import { app, BrowserWindow } from 'electron';
 
 import { installCaptureBridge } from './capture-bridge.ts';
 import { RENDERER_ENTRY, registerRendererScheme, serveRendererFrom } from './renderer-protocol.ts';
+import { initSentry } from './sentry.ts';
+
+// First, so a crash during startup itself — before a window even opens — is
+// still reported (phase-2-reliability.md §2.6).
+initSentry();
 
 /**
  * Electron main process.

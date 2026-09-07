@@ -135,6 +135,12 @@ export const config = {
    * the slot only keeps a viewer nobody is returning as from watching.
    */
   viewerGraceMs: intFromEnv('VIEWER_GRACE_MS', 90_000, 1_000, 60 * 60 * 1_000),
+  /**
+   * Where errors go (phase-2-reliability.md §2.6). Absent is allowed, the
+   * same way `databaseUrl` is: without it, the service runs with error
+   * reporting off and says so once at startup.
+   */
+  sentryDsn: process.env['SENTRY_DSN'],
   // LOG_LEVEL is deliberately absent. It is read in log.ts instead, because
   // this module logs its own rejections and cannot import a logger that
   // imports it back. A `logLevel` here would be read by nothing and changing

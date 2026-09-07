@@ -1,13 +1,15 @@
 import { createServer } from 'node:http';
-import { WebSocketServer, type WebSocket } from 'ws';
 
 import { createRecorder, hashIp } from '@crossscreen/db';
 import { HEARTBEAT, parseClientEnvelope } from '@crossscreen/protocol';
+import * as Sentry from '@sentry/node';
+import { WebSocketServer, type WebSocket } from 'ws';
 
 import { config } from './config.ts';
 import { handleDisconnect, handleMessage, sendError, type Connection } from './handlers.ts';
 import { log } from './log.ts';
 import { InMemorySessionStore, startSweeper } from './session-store.ts';
+import { initSentry } from './sentry.ts';
 import { send } from './handlers.ts';
 
 /**
@@ -16,6 +18,26 @@ import { send } from './handlers.ts';
  * It carries offer, answer and ICE between two peers and decides who may
  * receive them. It never sees media, and it never inspects SDP.
  */
+
+// First, so a crash anywhere below — including during startup itself — is
+// still reported (phase-2-reliability.md §2.6).
+if (!initSentry()) {
+  log.warn('sentry.not_configured', {
+    hint: 'SENTRY_DSN is not set. Errors are logged but not reported.',
+  });
+}
+
+process.on('uncaughtException', (err) => {
+  Sentry.captureException(err);
+  log.error('signaling.uncaught_exception', { message: err.message });
+  process.exit(1);
+});
+process.on('unhandledRejection', (reason) => {
+  Sentry.captureException(reason);
+  log.error('signaling.unhandled_rejection', {
+    message: reason instanceof Error ? reason.message : String(reason),
+  });
+});
 
 const store = new InMemorySessionStore();
 const recorder = createRecorder(config.databaseUrl, log);
@@ -69,8 +91,14 @@ wss.on('connection', (socket: WebSocket, req) => {
       (err: unknown) => {
         // A handler throwing must not take the socket down with it, and must
         // not leave the client waiting for a reply that is never coming.
+        // captureException, not the log.error wrapper alone: this is the one
+        // place in this service that still holds the real Error object.
+        Sentry.captureException(err, {
+          extra: { type: parsed.value.payload.type, sessionId: connection.sessionId },
+        });
         log.error('handler.failed', {
           type: parsed.value.payload.type,
+          sessionId: connection.sessionId,
           message: err instanceof Error ? err.message : String(err),
         });
         sendError(socket, 'INTERNAL_ERROR', parsed.value.id);

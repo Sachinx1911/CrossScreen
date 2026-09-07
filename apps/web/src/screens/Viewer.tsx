@@ -7,6 +7,7 @@ import { useFullscreen } from '../components/Fullscreen.tsx';
 import { Button, Card, Notice, QualityBadge, StatusDot } from '../components/Primitives.tsx';
 import { apiBaseUrl, forceRelay, signalingUrl } from '../config.ts';
 import { navigate } from '../router.ts';
+import { tagParticipant } from '../sentry.ts';
 
 /**
  * Watching a screen.
@@ -51,6 +52,9 @@ export function Viewer({ joinCode, joinToken }: { joinCode?: string; joinToken?:
     viewer.on('phase', (event) => {
       setPhase(event.phase);
       setMessage(event.message);
+    });
+    viewer.on('participant', ({ participantId }) => {
+      tagParticipant(participantId);
     });
     viewer.on('stream', setStream);
     viewer.on('connection', ({ state }) => {

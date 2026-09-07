@@ -1,6 +1,7 @@
 import cors from '@fastify/cors';
 import { createRecorder, type Recorder } from '@crossscreen/db';
-import Fastify, { type FastifyInstance } from 'fastify';
+import * as Sentry from '@sentry/node';
+import Fastify, { type FastifyError, type FastifyInstance } from 'fastify';
 
 import { config } from './config.ts';
 import { log } from './log.ts';
@@ -104,6 +105,24 @@ export function buildApp(
   app.get('/api/v1/ice-servers', async () => ({ iceServers: await iceServers(turnSource) }));
 
   app.setNotFoundHandler((_request, reply) => reply.code(404).send({ error: 'not_found' }));
+
+  /**
+   * Fastify's own default error handler sends a 500 and stops there — with
+   * `logger: false` (above), nothing about a route handler throwing was
+   * being recorded anywhere at all. `captureException` here, rather than the
+   * `log.error` wrapper alone, because this is one of the two places in this
+   * service that still holds the real `Error` object with its stack trace,
+   * not just a message string reduced to a log field.
+   */
+  app.setErrorHandler((err: FastifyError, request, reply) => {
+    Sentry.captureException(err);
+    log.error('api.request_failed', {
+      method: request.method,
+      url: request.url,
+      message: err.message,
+    });
+    reply.code(err.statusCode ?? 500).send({ error: 'internal_error' });
+  });
 
   return app;
 }
