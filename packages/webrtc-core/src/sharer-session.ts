@@ -87,7 +87,20 @@ export class SharerSession extends Emitter<SharerEvents> {
   readonly pending = new Map<string, JoinRequestInfo>();
 
   #signaling: SignalingClient | undefined;
-  readonly #peers = new Map<string, { pc: RTCPeerConnection; ice: IceCandidateQueue }>();
+  readonly #peers = new Map<
+    string,
+    {
+      pc: RTCPeerConnection;
+      ice: IceCandidateQueue;
+      /**
+       * An ICE restart is already in flight for this peer. Guards against
+       * sending a second restart offer while `connectionState` is still
+       * settling from the first — `'failed'` can be reported more than once
+       * for the one underlying outage.
+       */
+      restarting: boolean;
+    }
+  >();
   #iceServers: RTCIceServer[] = [];
   #statsTimer: ReturnType<typeof setInterval> | undefined;
   #session: CreatedSession | undefined;
@@ -304,6 +317,14 @@ export class SharerSession extends Emitter<SharerEvents> {
       });
     });
 
+    // A viewer noticed the failure before this end did, and is asking for the
+    // repair — it cannot perform one itself, since it only ever answers. Only
+    // the offerer restarts ICE, which this always is (architecture: the
+    // sharer offers, the viewer answers), so there is no glare to resolve.
+    signaling.on('rtc.restart', (message) => {
+      void this.#restartIce(message.from);
+    });
+
     signaling.on('session.ended', (message) => {
       // Reached when the sweeper ends a session the host is still connected
       // to but nobody is watching — 'host_ended' never arrives here, since a
@@ -373,7 +394,7 @@ export class SharerSession extends Emitter<SharerEvents> {
       ...(this.#deps.forceRelay === true ? { iceTransportPolicy: 'relay' as const } : {}),
     });
     const ice = new IceCandidateQueue(pc);
-    this.#peers.set(participantId, { pc, ice });
+    this.#peers.set(participantId, { pc, ice, restarting: false });
 
     pc.onicecandidate = (event): void => {
       if (event.candidate === null) return;
@@ -388,6 +409,15 @@ export class SharerSession extends Emitter<SharerEvents> {
 
     pc.onconnectionstatechange = (): void => {
       this.emit('connection', { state: userFacingState(pc.connectionState) });
+
+      if (pc.connectionState === 'failed') {
+        void this.#restartIce(participantId);
+      } else if (pc.connectionState === 'connected') {
+        // A completed restart, or a connection that never needed one — either
+        // way the next genuine failure deserves a restart of its own.
+        const peer = this.#peers.get(participantId);
+        if (peer !== undefined) peer.restarting = false;
+      }
     };
 
     const track = this.#deps.stream.getVideoTracks()[0];
@@ -409,6 +439,33 @@ export class SharerSession extends Emitter<SharerEvents> {
     signaling.send({ type: 'rtc.offer', to: participantId, sdp: offer.sdp });
 
     this.#startStats();
+  }
+
+  /**
+   * Recover the *media* path after a real network change — a Wi-Fi to mobile
+   * handover, a changed IP — as distinct from `SignalingClient`'s own
+   * reconnect, which only ever repairs the signaling socket and cannot touch
+   * ICE at all (§2.3).
+   *
+   * `restartIce()` does not itself renegotiate; it only marks the *next*
+   * offer as one that carries fresh ICE credentials. Reusing the existing
+   * `RTCPeerConnection` — never rebuilding it — is what makes this cheap: the
+   * track, the transceiver and everything already tuned about them survive.
+   */
+  async #restartIce(participantId: string): Promise<void> {
+    const signaling = this.#signaling;
+    const peer = this.#peers.get(participantId);
+    if (signaling === undefined || peer === undefined || peer.restarting) return;
+    peer.restarting = true;
+
+    peer.pc.restartIce();
+    const offer = await peer.pc.createOffer();
+    await peer.pc.setLocalDescription(offer);
+    if (offer.sdp === undefined) {
+      peer.restarting = false;
+      return;
+    }
+    signaling.send({ type: 'rtc.offer', to: participantId, sdp: offer.sdp });
   }
 
   #closePeer(participantId: string): void {

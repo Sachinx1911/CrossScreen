@@ -132,11 +132,35 @@ the same participant without a second approval round.
 > stuck showing forever after a purely signaling-side outage. Both sessions now
 > re-emit the real connection state on `state === 'open'`.
 >
-> **Still open in §2.3:** ICE restart, so the _media_ path itself recovers from
-> a real network change rather than only the signaling socket reconnecting
-> around it. `rtc.restart` exists in the protocol and is relayed, but nothing
-> sends it yet — that is the one piece of the reconnection story genuinely
-> untouched.
+> **ICE restart landed 2026-09-07**, closing the remaining piece: recovering
+> the _media_ path itself after a real network change, as distinct from
+> `SignalingClient`'s own reconnect, which only ever repairs the signaling
+> socket and cannot touch ICE at all.
+>
+> The sharer is always the offerer in this architecture (the viewer only ever
+> answers), so it is the only side that can perform a restart — `restartIce()`
+> plus a fresh `createOffer()`/`setLocalDescription()`, sent as an ordinary
+> `rtc.offer` on the _same_ `RTCPeerConnection`, never a new one, so the track
+> and everything already tuned about it survive. A viewer that notices
+> `connectionState === 'failed'` first cannot restart itself, so it asks via
+> `rtc.restart`; the sharer restarts on either that or noticing the failure
+> directly. Both sides guard against asking or acting twice for one outage —
+> `connectionState` can report `'failed'` more than once while a restart is
+> already in flight — and clear the guard once `'connected'` is seen again.
+> The viewer's `#answer` now tells a first offer from a restart one by whether
+> it already holds a peer connection, and reuses it rather than rebuilding.
+>
+> **Verified at the wire level, not against a genuine connectivity failure.**
+> A test proves `rtc.restart` relays correctly with a server-asserted sender in
+> both directions, which is the plumbing both sides depend on. What is not
+> verified is the client logic actually recovering a real ICE failure: forcing
+> one needs breaking the underlying UDP path while a connection is established,
+> which is outside what Playwright's network interception can do — it acts on
+> fetch/WebSocket traffic through the browser, not the OS-level UDP sockets
+> WebRTC uses. Real verification needs the same kind of network chaos the
+> Phase 0.5 gate needed and got by hand — two networks, a connection forced to
+> fail, and a recovery watched — which is worth doing before this line is
+> called proven rather than merely written.
 
 ### 2.4 — Stats pipeline
 

@@ -49,6 +49,15 @@ export class ViewerSession extends Emitter<ViewerEvents> {
   #statsTimer: ReturnType<typeof setInterval> | undefined;
   #iceServers: RTCIceServer[] = [];
   #stopped = false;
+  /** Who to ask for an ICE restart. Set from the first offer's `from`. */
+  #hostId: string | undefined;
+  /**
+   * Guards against asking twice for the same failure. `connectionState` can
+   * report `'failed'` more than once while a restart is already in flight —
+   * asking again each time would flood the host with requests for a repair
+   * that is already underway.
+   */
+  #restartRequested = false;
   /**
    * Set once approved. Carried into the join request sent after a signaling
    * reconnect, so this viewer resumes its own slot instead of re-entering the
@@ -192,7 +201,11 @@ export class ViewerSession extends Emitter<ViewerEvents> {
 
     // An offer only ever arrives after approval — the server will not relay
     // one before it (ADR-0006). Answering whatever turns up is therefore safe.
+    // A second one, on an already-open connection, is an ICE restart rather
+    // than a new session — `#answer` tells the two apart by whether `#pc`
+    // already exists, and reuses it rather than rebuilding from nothing.
     signaling.on('rtc.offer', async (message) => {
+      this.#hostId = message.from;
       await this.#answer(message.sdp, message.from);
     });
 
@@ -261,6 +274,31 @@ export class ViewerSession extends Emitter<ViewerEvents> {
     const signaling = this.#signaling;
     if (signaling === undefined) return;
 
+    // A second offer on an existing connection is an ICE restart (§2.3),
+    // not a new session — reusing the same RTCPeerConnection is the entire
+    // point: the track, the transceiver and everything already negotiated
+    // stay in place, and only the ICE generation is fresh.
+    const pc = this.#pc ?? this.#newPeerConnection(signaling, from);
+
+    await pc.setRemoteDescription({ type: 'offer', sdp });
+    // Anything that arrived ahead of the offer is usable now. On a restart
+    // this is close to a no-op — the queue only holds candidates that arrived
+    // before a remote description existed at all — but costs nothing to call.
+    await this.#ice?.flush();
+
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    if (answer.sdp === undefined) {
+      this.emit('error', { message: 'Could not join the session.' });
+      return;
+    }
+    signaling.send({ type: 'rtc.answer', to: from, sdp: answer.sdp });
+
+    this.#startStats();
+  }
+
+  /** Built once, on the first offer. A restart reuses this, never rebuilds it. */
+  #newPeerConnection(signaling: SignalingClient, from: string): RTCPeerConnection {
     const pc = new RTCPeerConnection({
       iceServers: this.#iceServers,
       ...(this.#deps.forceRelay === true ? { iceTransportPolicy: 'relay' as const } : {}),
@@ -288,21 +326,31 @@ export class ViewerSession extends Emitter<ViewerEvents> {
 
     pc.onconnectionstatechange = (): void => {
       this.emit('connection', { state: userFacingState(pc.connectionState) });
+
+      if (pc.connectionState === 'failed') {
+        this.#requestRestart(signaling);
+      } else if (pc.connectionState === 'connected') {
+        // A completed restart, or a connection that never needed one — either
+        // way the next genuine failure deserves its own request.
+        this.#restartRequested = false;
+      }
     };
 
-    await pc.setRemoteDescription({ type: 'offer', sdp });
-    // Anything that arrived ahead of the offer is usable now.
-    await this.#ice.flush();
+    return pc;
+  }
 
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
-    if (answer.sdp === undefined) {
-      this.emit('error', { message: 'Could not join the session.' });
-      return;
-    }
-    signaling.send({ type: 'rtc.answer', to: from, sdp: answer.sdp });
-
-    this.#startStats();
+  /**
+   * Ask the host to restart ICE.
+   *
+   * The viewer only ever answers (ADR — the sharer is always the offerer), so
+   * it cannot create the restart offer itself; this is a request, not the
+   * repair. `#restartRequested` stops it from being sent again while the host
+   * is presumably already acting on the first one.
+   */
+  #requestRestart(signaling: SignalingClient): void {
+    if (this.#restartRequested || this.#hostId === undefined) return;
+    this.#restartRequested = true;
+    signaling.send({ type: 'rtc.restart', to: this.#hostId });
   }
 
   #startStats(intervalMs = 2000): void {

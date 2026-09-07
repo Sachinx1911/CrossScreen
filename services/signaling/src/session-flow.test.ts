@@ -259,6 +259,38 @@ test('after approval the offer flows, with a server-asserted sender', async () =
   await settle();
 });
 
+test('an ICE restart request is relayed, with a server-asserted sender, in either direction', async () => {
+  // The plumbing `SharerSession`/`ViewerSession` rely on for §2.3's media-path
+  // recovery: whichever side notices a real connection failure can ask the
+  // other for a restart, gated by the same approval as everything else.
+  const { host, code, hostId } = await attachedHost();
+
+  const viewer = await Client.open();
+  viewer.send({ type: 'session.viewer.request', joinCode: code });
+  const pending = await host.next('session.viewer.pending');
+  if (pending.payload.type !== 'session.viewer.pending') assert.fail('wrong type');
+  const viewerId = pending.payload.request.participantId;
+  host.send({ type: 'session.viewer.approve', participantId: viewerId });
+  await viewer.next('session.viewer.approved');
+
+  // Viewer asks the host — the common case, since the sharer is always the
+  // offerer and only it can actually perform the restart.
+  viewer.send({ type: 'rtc.restart', to: hostId });
+  const askedHost = await host.next('rtc.restart');
+  if (askedHost.payload.type !== 'rtc.restart') assert.fail('wrong type');
+  assert.equal(askedHost.payload.from, viewerId, 'the sender is asserted by the server');
+
+  // And the reverse works too, for whichever side notices first.
+  host.send({ type: 'rtc.restart', to: viewerId });
+  const askedViewer = await viewer.next('rtc.restart');
+  if (askedViewer.payload.type !== 'rtc.restart') assert.fail('wrong type');
+  assert.equal(askedViewer.payload.from, hostId);
+
+  host.close();
+  viewer.close();
+  await settle();
+});
+
 test('a viewer cannot approve itself', async () => {
   const { host, code } = await attachedHost();
 
