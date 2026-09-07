@@ -216,7 +216,7 @@ DATABASE_URL=postgres://crossscreen:crossscreen@localhost:5432/crossscreen pnpm 
 
 Then start the services with the same `DATABASE_URL`.
 
-The one query this exists to answer, and the reason Phase 2 needs it — what
+The query this exists to answer first, and the reason Phase 2 needs it — what
 fraction of connections went direct rather than through a relay, which is what
 predicts TURN cost (ADR-0004):
 
@@ -230,6 +230,76 @@ GROUP BY transport;
 Verified against PostgreSQL 17 on 2026-09-06: migrations apply, all four
 tables are created, and a full share-and-join run lands session events and
 connection statistics that the query above can actually read.
+
+### The rest of what 2.4 asks for
+
+`connection_stats` and `session_events` between them are meant to answer every
+question about a failed session without asking anyone to reproduce it. The
+direct-versus-relay query above is one of four; these are the others.
+
+**Time to connect, median and p95.** The `connected` session event is written
+once per connection — the first `stats.report` naming `connectionState:
+'connected'`, not every one of the reports that keep arriving after — measured
+against `created`, which is the one baseline every session has regardless of
+whether a host or a viewer is the side being measured:
+
+```sql
+SELECT
+  percentile_cont(0.5) WITHIN GROUP (ORDER BY connected_at - created_at) AS p50,
+  percentile_cont(0.95) WITHIN GROUP (ORDER BY connected_at - created_at) AS p95
+FROM (
+  SELECT
+    c.session_id,
+    c.occurred_at AS created_at,
+    min(e.occurred_at) AS connected_at
+  FROM session_events c
+  JOIN session_events e ON e.session_id = c.session_id AND e.event = 'connected'
+  WHERE c.event = 'created' AND c.occurred_at > now() - interval '7 days'
+  GROUP BY c.session_id, c.occurred_at
+) t;
+```
+
+**Failure reasons, grouped.** Two different things end up here on purpose: why
+a session ended at all (`session_events`, `event = 'ended'`, which already
+distinguishes `host_ended` / `expired` / `idle_timeout`), and where a live
+connection itself reported `failed` before anyone closed anything
+(`connection_stats.connection_state`):
+
+```sql
+SELECT detail->>'reason' AS reason, count(*)
+FROM session_events
+WHERE event = 'ended' AND occurred_at > now() - interval '7 days'
+GROUP BY 1
+ORDER BY 2 DESC;
+
+SELECT transport, count(*)
+FROM connection_stats
+WHERE connection_state = 'failed' AND occurred_at > now() - interval '7 days'
+GROUP BY transport;
+```
+
+**Round-trip time, packet loss, bitrate, resolution, frame rate, codec for one
+session** — the question asked while looking at a specific report of "it was
+bad," which is what makes this table worth having at all:
+
+```sql
+SELECT occurred_at, transport, quality, connection_state,
+       round_trip_ms, packet_loss_pct, bitrate_kbps,
+       resolution, frames_per_second, codec
+FROM connection_stats
+WHERE session_id = $1
+ORDER BY occurred_at;
+```
+
+**Not verified against a live database this session** — the migration
+(`002_stats_pipeline.sql`) is three additive `ALTER TABLE ADD COLUMN`
+statements following the same shape as the ones in `001` that already ran
+clean, and the handler logic that fills them (`packetLossPct`, `bitrateKbps`,
+`connectionState`, the one-time `connected` event) is covered by
+`services/signaling/src/handlers.test.ts` against a fake recorder. What is not
+yet re-proven is these queries actually reading back rows from a real
+Postgres, the way the direct-versus-relay one above was on 2026-09-06 — worth
+doing the next time this machine has Docker Desktop running.
 
 ## Stale servers
 

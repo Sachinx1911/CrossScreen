@@ -32,9 +32,14 @@ export interface ConnectionStat {
   transport: 'direct' | 'relay' | 'unknown';
   quality?: string;
   roundTripMs?: number;
+  /** 0-100. What a saturated or congested link shows up in first. */
+  packetLossPct?: number;
+  bitrateKbps?: number;
   resolution?: string;
   codec?: string;
   framesPerSecond?: number;
+  /** The client's own connectionStateSchema value — 'failed' is what makes a failure reason groupable without asking anyone to reproduce it. */
+  connectionState?: string;
 }
 
 export type AbuseEventName = 'code_attempt_failed' | 'session_locked' | 'reported';

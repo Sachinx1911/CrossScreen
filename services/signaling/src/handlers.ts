@@ -42,6 +42,15 @@ export interface Connection {
   sessionId?: string;
   participantId?: string;
   role?: 'host' | 'viewer';
+  /**
+   * Set the first time this socket reports `connectionState: 'connected'`.
+   *
+   * Guards the one-time `connected` session event below: `stats.report`
+   * arrives every couple of seconds for as long as the peer connection lives,
+   * and "time to connect" (phase-2-reliability.md §2.4) needs exactly one
+   * timestamp per connection, not one per report.
+   */
+  connectedRecorded?: boolean;
 }
 
 export function send(socket: WebSocket, message: ServerMessage, id?: string): void {
@@ -473,12 +482,30 @@ export async function handleMessage(
           transport: payload.transport,
           quality: payload.quality,
           ...(payload.roundTripMs === undefined ? {} : { roundTripMs: payload.roundTripMs }),
+          ...(payload.packetLossPct === undefined ? {} : { packetLossPct: payload.packetLossPct }),
+          ...(payload.bitrateKbps === undefined ? {} : { bitrateKbps: payload.bitrateKbps }),
           ...(payload.resolution === undefined ? {} : { resolution: payload.resolution }),
           ...(payload.codec === undefined ? {} : { codec: payload.codec }),
           ...(payload.framesPerSecond === undefined
             ? {}
             : { framesPerSecond: payload.framesPerSecond }),
+          connectionState: payload.connectionState,
         });
+
+        // One row per connection, not per report: this is what "time to
+        // connect" (§2.4) is measured against, alongside whichever of
+        // `created` / `host_attached` / `viewer_approved` is the right
+        // starting point for the query being asked.
+        if (payload.connectionState === 'connected' && connection.connectedRecorded !== true) {
+          connection.connectedRecorded = true;
+          connection.recorder.sessionEvent({
+            sessionId: connection.sessionId,
+            event: 'connected',
+            ...(connection.participantId === undefined
+              ? {}
+              : { participantId: connection.participantId }),
+          });
+        }
       }
       return;
   }

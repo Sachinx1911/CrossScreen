@@ -186,6 +186,32 @@ Clients already send `stats.report`. This phase lands them in
 Enough to answer every question in architecture §80 about a failed session
 without asking the user to reproduce it.
 
+> **2.4 done, 2026-09-07.** Two fields `stats.report` had always carried —
+> `packetLossPct`, `bitrateKbps` — were being parsed and then discarded before
+> reaching `connection_stats`; a third, `connectionState`, was never stored at
+> all, so a client-observed `'failed'` never left the client that saw it.
+> `002_stats_pipeline.sql` adds all three columns. A one-time `connected`
+> session event, written the first time a connection's own reports says
+> `connectionState: 'connected'` rather than on every report after, is what
+> "time to connect" is now measurable against — nothing wrote that event
+> before this, so the question had no data to answer it with. Every path in
+> `dev-setup.md`'s expanded stats section — the relay ratio, time to connect
+> at p50/p95, failure reasons grouped by both session-end reason and live
+> `connectionState: 'failed'` reports, and the full per-session detail row —
+> is now backed by a column that actually gets written.
+>
+> The recorder-facing half is covered by
+> `services/signaling/src/handlers.test.ts` (new), asserting directly against
+> a fake recorder rather than over the wire: `stats.report` sends nothing
+> back, so the session-flow suite that already exercises the wire has no way
+> to see whether a report reached storage. **Not re-verified against a live
+> Postgres** — Docker Desktop was not available on this machine this session,
+> so the new columns are unconfirmed against a real database the way the
+> existing ones were on 2026-09-06. The migration is three additive `ALTER
+TABLE ADD COLUMN` statements in the same shape as ones that already ran
+> clean, which is why this is recorded as done rather than blocked on it —
+> but it is real verification still owed, not assumed.
+
 ### 2.5 — Quality indicator
 
 The mockup's "Good Connection" label becomes real: derived from measured
