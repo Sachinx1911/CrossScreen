@@ -62,22 +62,34 @@ export const config = {
   /** Must match the signaling service's, or no host token will verify. */
   sessionSecret: secretFromEnv('SESSION_SECRET', 32),
 
-  /**
-   * ICE servers handed to clients. Static here; Phase 2 replaces this endpoint
-   * with short-lived Cloudflare credentials, which is why clients ask for it
-   * rather than hardcoding anything (ADR-0004).
-   */
+  /** STUN needs no credential, so unlike TURN it is simply static. */
   stunUrls: (process.env['STUN_URLS'] ?? 'stun:stun.l.google.com:19302')
     .split(',')
     .map((u) => u.trim())
     .filter((u) => u !== ''),
 
-  turnUrls: (process.env['TURN_URLS'] ?? '')
-    .split(',')
-    .map((u) => u.trim())
-    .filter((u) => u !== ''),
-  turnUsername: process.env['TURN_USERNAME'] ?? '',
-  turnCredential: process.env['TURN_CREDENTIAL'] ?? '',
+  /**
+   * The long-term Cloudflare key this service uses to mint short-lived TURN
+   * credentials per request (turn.ts, ADR-0004) — never handed to a client
+   * itself. Absent is allowed: without it, `/api/v1/ice-servers` serves
+   * STUN-only, which still works between two friendly networks, and `turn.ts`
+   * warns once at startup rather than failing every session over it.
+   *
+   * `pnpm turn` copies both values from `.env.turn` (per the one-time
+   * dashboard setup in dev-setup.md) into this service's own `.env.local`.
+   */
+  cloudflareTurnKeyId: process.env['CLOUDFLARE_TURN_KEY_ID'],
+  cloudflareTurnApiToken: process.env['CLOUDFLARE_TURN_API_TOKEN'],
+
+  /**
+   * How long a minted TURN credential is valid for. Short enough to be a real
+   * claim of "short-lived" against a key that never expires on its own; long
+   * enough that the common case — one session, including a possible ICE
+   * restart later in it — never needs a second one. `REFRESH_MARGIN_MS` in
+   * turn.ts refetches ahead of this, so a client is never handed one about to
+   * lapse.
+   */
+  turnTtlSeconds: intFromEnv('TURN_CREDENTIAL_TTL_SECONDS', 4 * 60 * 60, 60, 24 * 60 * 60),
 
   /** Where share links point. Only used to build the link we hand back. */
   appOrigin: process.env['APP_ORIGIN'] ?? 'http://localhost:5173',

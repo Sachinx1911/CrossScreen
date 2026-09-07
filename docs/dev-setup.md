@@ -338,7 +338,7 @@ had carried the check — `hasTurnServer`, fully unit-tested — for a while
 without either session ever calling it; fixed 2026-09-07, and now proven by an
 end-to-end test rather than only a unit one.)
 
-TURN credentials are required, and `pnpm turn` fetches them:
+TURN needs a Cloudflare key, and `pnpm turn` sets it up:
 
 1. **dash.cloudflare.com → Realtime → TURN Keys → Create.** Free, and the
    first 1 TB per month costs nothing (ADR-0004).
@@ -354,15 +354,16 @@ TURN credentials are required, and `pnpm turn` fetches them:
    pnpm turn
    ```
 
-It writes a 24-hour credential into `services/api/.env.local`, which
-`GET /api/v1/ice-servers` hands to clients on request. **Restart `pnpm dev`
-afterwards** — the API service reads its environment once, at startup.
+It copies both into `services/api/.env.local`. **Restart `pnpm dev` once**
+afterwards, so the API service picks up the key — from then on, it mints its
+own short-lived credential (`TURN_CREDENTIAL_TTL_SECONDS`, four hours by
+default) from that key on every `GET /api/v1/ice-servers` call, cached until
+shortly before it expires (`services/api/src/turn.ts`), with no further
+restarts needed.
 
 No client ever ships a TURN secret: the apps ask that endpoint rather than
 carrying credentials in their own build, and the long-term Cloudflare key never
-leaves `.env.turn` on this machine. Phase 2.1 finishes the job by having the
-service mint a credential per request instead of reading a day-old one from
-its environment.
+reaches a client at all — only the short-lived credential minted from it does.
 
 > Until 2026-09-07 this script wrote `VITE_TURN_*` into the web and desktop
 > apps' `.env.local` instead — left over from before the endpoint existed.
@@ -386,19 +387,19 @@ run is a run half wasted.
 
 ## Environment variables
 
-| Variable                    | Used by        | Purpose                                                |
-| --------------------------- | -------------- | ------------------------------------------------------ |
-| `SIGNALING_PORT`            | signaling      | Listen port (default 8787)                             |
-| `SIGNALING_HOST`            | signaling      | Bind address (default 127.0.0.1)                       |
-| `LOG_LEVEL`                 | signaling      | `debug`, `info`, `warn`, `error`                       |
-| `SIGNALING_TARGET`          | web dev server | Where `/ws` is proxied (default `ws://127.0.0.1:8787`) |
-| `VITE_SIGNALING_URL`        | web, desktop   | WebSocket URL of the signaling server                  |
-| `TURN_URLS`                 | api            | Comma-separated TURN URLs, served to clients           |
-| `TURN_USERNAME`             | api            | TURN username, served to clients                       |
-| `TURN_CREDENTIAL`           | api            | TURN credential, served to clients                     |
-| `VITE_FORCE_RELAY`          | desktop        | `1` pins ICE to relay only                             |
-| `VITE_AUTOSTART`            | desktop        | `1` starts sharing without a click                     |
-| `CROSSSCREEN_SIGNALING_URL` | desktop main   | Overrides `.tunnel-url` at launch                      |
+| Variable                      | Used by        | Purpose                                                 |
+| ----------------------------- | -------------- | ------------------------------------------------------- |
+| `SIGNALING_PORT`              | signaling      | Listen port (default 8787)                              |
+| `SIGNALING_HOST`              | signaling      | Bind address (default 127.0.0.1)                        |
+| `LOG_LEVEL`                   | signaling      | `debug`, `info`, `warn`, `error`                        |
+| `SIGNALING_TARGET`            | web dev server | Where `/ws` is proxied (default `ws://127.0.0.1:8787`)  |
+| `VITE_SIGNALING_URL`          | web, desktop   | WebSocket URL of the signaling server                   |
+| `CLOUDFLARE_TURN_KEY_ID`      | api            | Long-term Cloudflare key; mints short-lived credentials |
+| `CLOUDFLARE_TURN_API_TOKEN`   | api            | Paired with the key id above                            |
+| `TURN_CREDENTIAL_TTL_SECONDS` | api            | How long a minted credential lasts (default 4 hours)    |
+| `VITE_FORCE_RELAY`            | desktop        | `1` pins ICE to relay only                              |
+| `VITE_AUTOSTART`              | desktop        | `1` starts sharing without a click                      |
+| `CROSSSCREEN_SIGNALING_URL`   | desktop main   | Overrides `.tunnel-url` at launch                       |
 
 > **`VITE_AUTOSTART` shares your screen the moment the app opens.** It exists so
 > a scripted run does not need someone to press a button, and it is why the

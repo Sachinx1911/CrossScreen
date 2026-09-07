@@ -62,11 +62,20 @@ measured honestly.
 > own environment — so the script reported success while configuring nothing,
 > and the endpoint kept handing out STUN alone.
 >
-> **2.1 (short-lived TURN credentials) is not yet done** — `/api/v1/ice-servers`
-> still returns whatever static `TURN_URLS`/`TURN_USERNAME`/`TURN_CREDENTIAL` are
-> in `services/api`'s environment. `pnpm turn` remains the manual stand-in: it
-> fetches a 24-hour credential and writes it there, rather than the service
-> minting one per request.
+> **2.1 done, 2026-09-07.** `GET /api/v1/ice-servers` now mints its own
+> credential from a long-term Cloudflare key on every call it needs to —
+> `TurnCredentialSource` (`services/api/src/turn.ts`) caches the result and
+> refetches ahead of its expiry (`TURN_CREDENTIAL_TTL_SECONDS`, four hours by
+> default) rather than asking Cloudflare fresh per request, since every sharer
+> and viewer calls this endpoint at the start of every session and a short
+> lifetime is what makes a credential short-lived, not how few callers share
+> it. A network problem reaching Cloudflare serves the last cached credential
+> rather than failing the endpoint outright, and no configuration at all falls
+> back to STUN-only with one loud warning at startup — never a hard failure,
+> since a connection between two friendly networks needs no TURN at all.
+> `pnpm turn` now does only the one-time setup step this can't do itself:
+> getting the long-term key from the dashboard into the service's environment.
+> The key itself still never reaches a client — only what is minted from it.
 
 ### 2.3 — ICE restart and reconnection
 

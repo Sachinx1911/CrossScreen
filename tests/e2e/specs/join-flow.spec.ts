@@ -513,7 +513,7 @@ test('a code that is not six digits is caught before anything is sent', async ({
 test('forcing relay with no TURN configured refuses to start, in plain language', async ({
   page,
 }) => {
-  // This suite's signaling/api servers carry no TURN_URLS (see
+  // This suite's signaling/api servers carry no CLOUDFLARE_TURN_KEY_ID (see
   // playwright.config.ts), the ordinary state of a fresh clone. `?relay=1`
   // used to mean the sharer would try anyway and gather nothing at all —
   // indistinguishable from a genuine no-path failure. It now refuses up

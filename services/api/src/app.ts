@@ -5,6 +5,19 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { config } from './config.ts';
 import { log } from './log.ts';
 import { createSession, iceServers } from './sessions.ts';
+import { TurnCredentialSource, type CloudflareTurnConfig } from './turn.ts';
+
+/** `undefined` when the key is not configured — TurnCredentialSource then serves STUN-only. */
+function turnConfigFromEnv(): CloudflareTurnConfig | undefined {
+  if (config.cloudflareTurnKeyId === undefined || config.cloudflareTurnApiToken === undefined) {
+    return undefined;
+  }
+  return {
+    keyId: config.cloudflareTurnKeyId,
+    apiToken: config.cloudflareTurnApiToken,
+    ttlSeconds: config.turnTtlSeconds,
+  };
+}
 
 /**
  * The HTTP API.
@@ -15,6 +28,7 @@ import { createSession, iceServers } from './sessions.ts';
  */
 export function buildApp(
   recorder: Recorder = createRecorder(config.databaseUrl, log),
+  turnSource: TurnCredentialSource = new TurnCredentialSource(turnConfigFromEnv(), log),
 ): FastifyInstance {
   const app = Fastify({ logger: false, trustProxy: true });
 
@@ -82,11 +96,12 @@ export function buildApp(
   /**
    * ICE configuration.
    *
-   * Static in Phase 1. Phase 2 makes it short-lived Cloudflare credentials,
-   * and because clients ask rather than hardcode, that change reaches them
-   * without a release (ADR-0004).
+   * The TURN entry is a fresh, short-lived credential — never a long-term
+   * secret sitting in a client's own environment — and because clients ask
+   * rather than hardcode, moving providers later reaches them without a
+   * release (ADR-0004).
    */
-  app.get('/api/v1/ice-servers', () => ({ iceServers: iceServers() }));
+  app.get('/api/v1/ice-servers', async () => ({ iceServers: await iceServers(turnSource) }));
 
   app.setNotFoundHandler((_request, reply) => reply.code(404).send({ error: 'not_found' }));
 

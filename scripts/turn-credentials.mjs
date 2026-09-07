@@ -1,27 +1,19 @@
 /**
- * Fetches short-lived TURN credentials from Cloudflare and writes them into
- * `services/api/.env.local`, where `GET /api/v1/ice-servers` reads them
- * (services/api/src/config.ts, ADR-0004). Clients never see this file — they
- * call that endpoint and get back whatever it hands out.
+ * Copies the Cloudflare TURN key into `services/api/.env.local`, where the
+ * API service now mints its own short-lived credentials per request
+ * (services/api/src/turn.ts, ADR-0004).
  *
  * Phase 0.5 discovered the hard way that TURN is not optional: a PC and a
  * phone on mobile data could not find a direct path at all, and with no relay
  * configured the connection simply failed. Mobile carriers put subscribers
  * behind CGNAT, so this is the normal case rather than bad luck.
  *
- * The long-term secret stays on this machine, and only this machine — the
- * `.env.turn` it reads from is gitignored, and Cloudflare's API is asked to
- * mint a short-lived credential rather than the long-term key ever being
- * handed to a client. Phase 2 replaces the manual "run this before you test"
- * step with the API service doing this fetch itself; until then, this is
- * that step.
- *
- * This script used to write `VITE_TURN_URLS` and friends into the web and
- * desktop apps' own `.env.local` files, from before `/api/v1/ice-servers`
- * existed and clients read TURN configuration out of their own build. Now
- * that the endpoint is real, nothing reads those `VITE_TURN_*` variables —
- * writing them there did nothing, silently, for as long as this script
- * pointed at the wrong file. Fixed 2026-09-07.
+ * This script used to fetch a credential from Cloudflare itself and write it
+ * out — a manual, 24-hour-lived stand-in for what §2.1 wanted. Now that
+ * `GET /api/v1/ice-servers` does that fetching itself, on every request that
+ * needs it, this script's job shrinks to the one-time setup step: getting the
+ * long-term key from where it is created into where it is used. The key
+ * itself still never reaches a client — only what the service mints from it.
  *
  * Setup, once:
  *   1. dash.cloudflare.com  ->  Realtime  ->  TURN Keys  ->  Create
@@ -41,7 +33,6 @@ import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SECRETS_FILE = join(root, '.env.turn');
-const TTL_SECONDS = 86_400;
 const TARGET = 'services/api';
 
 function readSecrets() {
@@ -73,7 +64,7 @@ function readSecrets() {
   return { keyId, apiToken };
 }
 
-/** Replace the TURN_* lines in a .env.local, leaving everything else. */
+/** Replace the CLOUDFLARE_TURN_* lines in a .env.local, leaving everything else. */
 function writeEnv(dir, entries) {
   const file = join(root, dir, '.env.local');
   const managed = new Set(Object.keys(entries));
@@ -99,53 +90,14 @@ function writeEnv(dir, entries) {
 
 const { keyId, apiToken } = readSecrets();
 
-const response = await fetch(
-  `https://rtc.live.cloudflare.com/v1/turn/keys/${keyId}/credentials/generate-ice-servers`,
-  {
-    method: 'POST',
-    headers: {
-      authorization: `Bearer ${apiToken}`,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({ ttl: TTL_SECONDS }),
-  },
-);
-
-if (!response.ok) {
-  const body = await response.text();
-  console.error(`Cloudflare refused the request (HTTP ${response.status}).\n`);
-  // The body can echo request details; the token itself is never in it.
-  console.error(body.slice(0, 500));
-  if (response.status === 401 || response.status === 403) {
-    console.error('\nCheck the key ID and API token in .env.turn.');
-  }
-  process.exit(1);
-}
-
-const { iceServers } = await response.json();
-const servers = Array.isArray(iceServers) ? iceServers : [iceServers];
-
-const urls = servers.flatMap((s) => (Array.isArray(s.urls) ? s.urls : [s.urls])).filter(Boolean);
-const withCredentials = servers.find((s) => s.username && s.credential);
-
-if (withCredentials === undefined) {
-  console.error('Cloudflare returned no credentialed TURN server.');
-  process.exit(1);
-}
-
-const turnUrls = urls.filter((u) => u.startsWith('turn:') || u.startsWith('turns:'));
-
-console.log('TURN credentials issued.\n');
-console.log(`  valid for:  ${TTL_SECONDS / 3600} hours`);
-console.log(`  urls:       ${turnUrls.join('\n              ')}\n`);
-
 writeEnv(TARGET, {
-  TURN_URLS: turnUrls.join(','),
-  TURN_USERNAME: withCredentials.username,
-  TURN_CREDENTIAL: withCredentials.credential,
+  CLOUDFLARE_TURN_KEY_ID: keyId,
+  CLOUDFLARE_TURN_API_TOKEN: apiToken,
 });
 
-console.log('\nRestart `pnpm dev` so the api service picks up the new values.');
+console.log('\nThe API service mints its own short-lived credential from this key on');
+console.log('every GET /api/v1/ice-servers call — nothing further to fetch here.');
+console.log('\nRestart `pnpm dev` so the api service picks up the key.');
 console.log('To prove the relay path specifically:');
 console.log('  browser:  add ?relay=1 to the share or viewer URL');
 console.log('  desktop:  set VITE_FORCE_RELAY=1 in apps/desktop/.env.local and restart');

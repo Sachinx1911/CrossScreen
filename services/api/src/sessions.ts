@@ -6,6 +6,7 @@ import {
 } from '@crossscreen/protocol';
 
 import { config } from './config.ts';
+import type { TurnCredentialSource } from './turn.ts';
 
 /**
  * Session creation.
@@ -63,18 +64,16 @@ export async function createSession(now = Date.now()): Promise<CreatedSession> {
  *
  * Clients read this rather than hardcoding a provider, so moving from
  * Cloudflare to coturn later is a server configuration change instead of a
- * release of five clients (ADR-0004).
+ * release of five clients (ADR-0004). The TURN entry, when there is one, is
+ * minted fresh by `turnSource` with a short lifetime — see turn.ts — rather
+ * than a long-term credential sitting in this service's own environment.
  */
-export function iceServers(): RTCIceServerConfig[] {
+export async function iceServers(turnSource: TurnCredentialSource): Promise<RTCIceServerConfig[]> {
   const servers: RTCIceServerConfig[] = [{ urls: config.stunUrls }];
 
-  if (config.turnUrls.length > 0 && config.turnUsername !== '') {
-    servers.push({
-      urls: config.turnUrls,
-      username: config.turnUsername,
-      credential: config.turnCredential,
-    });
-  }
+  const turnServers = await turnSource.get();
+  if (turnServers !== undefined) servers.push(...turnServers);
+
   return servers;
 }
 
