@@ -49,6 +49,12 @@ export class ViewerSession extends Emitter<ViewerEvents> {
   #statsTimer: ReturnType<typeof setInterval> | undefined;
   #iceServers: RTCIceServer[] = [];
   #stopped = false;
+  /**
+   * Set once approved. Carried into the join request sent after a signaling
+   * reconnect, so this viewer resumes its own slot instead of re-entering the
+   * pending queue and waiting on the host a second time (§2.3).
+   */
+  #resume: { participantId: string; participantToken: string } | undefined;
 
   constructor(deps: ViewerDependencies) {
     super();
@@ -103,13 +109,42 @@ export class ViewerSession extends Emitter<ViewerEvents> {
       return;
     }
 
+    this.#requestJoin(signaling);
+    globalThis.addEventListener?.('pagehide', this.#onPageHide);
+  }
+
+  /**
+   * The join request, with a resume attached if this viewer was previously
+   * approved. Used both for the first attempt and, via `onReconnect`, for
+   * every one after — a signaling drop that happened before approval simply
+   * re-requests and waits again, which is the honest state to be in, since
+   * the server removed that pending request the moment the socket dropped.
+   */
+  #requestJoin(signaling: SignalingClient): void {
     signaling.send({
       type: 'session.viewer.request',
       ...(this.#deps.joinToken !== undefined
         ? { joinToken: this.#deps.joinToken }
         : { joinCode: this.#deps.joinCode ?? '' }),
+      ...(this.#resume === undefined ? {} : { resume: this.#resume }),
     });
   }
+
+  /**
+   * A page going away for good is a deliberate departure — as distinct from a
+   * socket that merely dropped, which the server now holds for a grace period
+   * instead of ending anything (§2.3). Without saying so, closing a tab would
+   * look exactly like a lost Wi-Fi signal, and the host would go on seeing
+   * "watching" until the grace period ran out on its own.
+   *
+   * `pagehide` rather than `beforeunload`: mobile browsers frequently skip the
+   * latter. `persisted` means the page went into the back/forward cache and
+   * may yet come back, which is a pause, not an ending.
+   */
+  readonly #onPageHide = (event: Event): void => {
+    if ((event as PageTransitionEvent).persisted) return;
+    this.#signaling?.send({ type: 'session.viewer.leave' });
+  };
 
   stop(): void {
     if (this.#stopped) return;
@@ -117,19 +152,33 @@ export class ViewerSession extends Emitter<ViewerEvents> {
 
     if (this.#statsTimer !== undefined) clearInterval(this.#statsTimer);
     this.#statsTimer = undefined;
+    globalThis.removeEventListener?.('pagehide', this.#onPageHide);
     this.#pc?.close();
     this.#pc = undefined;
+    this.#signaling?.send({ type: 'session.viewer.leave' });
     this.#signaling?.close();
     this.#signaling = undefined;
   }
 
   #wire(signaling: SignalingClient): void {
-    signaling.on('session.state', () => {
-      // The request reached a live session. Somebody now has to decide.
-      this.emit('phase', { phase: 'waiting-for-host' });
+    signaling.on('session.state', (message) => {
+      // A resumed viewer's own record already reads 'connected' — the server
+      // rebound it without ever un-approving it — so this is not a fresh
+      // arrival waiting on a decision, and must not be shown as one. Anyone
+      // still pending genuinely is, and that is the only case left to report.
+      const self = message.session.participants.find((p) => p.participantId === message.you);
+      if (self?.state !== 'connected') {
+        this.emit('phase', { phase: 'waiting-for-host' });
+      }
     });
 
-    signaling.on('session.viewer.approved', () => {
+    signaling.on('session.viewer.approved', (message) => {
+      // Kept so a later reconnect can present the same identity instead of
+      // re-entering the pending queue and waiting on the host a second time.
+      this.#resume = {
+        participantId: message.participantId,
+        participantToken: message.participantToken,
+      };
       this.emit('phase', { phase: 'approved' });
     });
 
@@ -169,7 +218,23 @@ export class ViewerSession extends Emitter<ViewerEvents> {
     // peer-to-peer and never touched that socket. Say "reconnecting" and let
     // the client retry rather than ending a session that is still playing.
     signaling.onState((state) => {
-      if (state === 'reconnecting') this.emit('connection', { state: 'reconnecting' });
+      if (state === 'reconnecting') {
+        this.emit('connection', { state: 'reconnecting' });
+        return;
+      }
+      // Reverts it. Without this, "Reconnecting…" was permanent once shown:
+      // nothing else re-reads the peer connection's own state, which very
+      // often has not changed at all during a signaling-only outage.
+      if (state === 'open' && this.#pc !== undefined) {
+        this.emit('connection', { state: userFacingState(this.#pc.connectionState) });
+      }
+    });
+
+    // Fires only for a genuine reconnect, never the first connection — see
+    // SignalingClient.onReconnect. Resending with whatever #resume holds is
+    // what lets an approved viewer keep its slot instead of asking again.
+    signaling.onReconnect(() => {
+      this.#requestJoin(signaling);
     });
 
     signaling.onClose(() => {

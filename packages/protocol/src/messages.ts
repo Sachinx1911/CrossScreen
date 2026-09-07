@@ -51,12 +51,26 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
    * Viewer asks to join. This does NOT grant access: the server places the
    * viewer in `pending` and notifies the host. No SDP is exchanged until the
    * host approves (ADR-0006).
+   *
+   * `resume` is how a viewer whose signaling socket dropped and reconnected
+   * (phase-2-reliability.md §2.3) gets back in without a second approval. It
+   * carries the identity and token issued at the original approval; the
+   * server treats a mismatch — expired, wrong session, already reclaimed by
+   * the grace-period sweep — as an ordinary fresh request rather than an
+   * error, since a resume that cannot be honoured should look exactly like
+   * someone joining for the first time, not like a failure.
    */
   z
     .object({
       type: z.literal('session.viewer.request'),
       joinCode: joinCodeSchema.optional(),
       joinToken: joinTokenSchema.optional(),
+      resume: z
+        .object({
+          participantId: z.uuid(),
+          participantToken: z.string().min(1),
+        })
+        .optional(),
     })
     .refine((v) => v.joinCode !== undefined || v.joinToken !== undefined, {
       message: 'A join request must carry either a joinCode or a joinToken',
@@ -74,6 +88,15 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
 
   /** Host ends the session for everyone. */
   z.object({ type: z.literal('session.end') }),
+
+  /**
+   * A viewer is leaving on purpose — the "Leave" control, or a closing tab —
+   * as distinct from a socket that merely dropped, which the server holds
+   * open for a grace period instead of ending anything (§2.3). Without this,
+   * a deliberate departure would look exactly like a network blip, and the
+   * host would go on seeing "watching" until the grace period ran out.
+   */
+  z.object({ type: z.literal('session.viewer.leave') }),
 
   // --- WebRTC negotiation. Relayed verbatim; the server never inspects SDP. ---
   z.object({

@@ -396,6 +396,88 @@ test('a host whose socket drops keeps the session, and rebinds to it', async () 
   await settle();
 });
 
+test('an approved viewer whose socket drops resumes without a second approval', async () => {
+  // The viewer-side mirror of the host reattach test above, over the wire.
+  const { host, code } = await attachedHost();
+
+  const viewer = await Client.open();
+  viewer.send({ type: 'session.viewer.request', joinCode: code });
+  const pending = await host.next('session.viewer.pending');
+  if (pending.payload.type !== 'session.viewer.pending') assert.fail('wrong type');
+  const viewerId = pending.payload.request.participantId;
+  host.send({ type: 'session.viewer.approve', participantId: viewerId });
+  const approved = await viewer.next('session.viewer.approved');
+  if (approved.payload.type !== 'session.viewer.approved') assert.fail('wrong type');
+  const participantToken = approved.payload.participantToken;
+
+  viewer.close();
+  await settle();
+
+  // Held, not announced — the host sees nothing while the grace period runs.
+  await host.never('peer.left');
+
+  const returning = await Client.open();
+  returning.send({
+    type: 'session.viewer.request',
+    joinCode: code,
+    resume: { participantId: viewerId, participantToken },
+  });
+
+  const state = await returning.next('session.state');
+  if (state.payload.type !== 'session.state') assert.fail('wrong type');
+  assert.equal(state.payload.you, viewerId, 'the same identity, not a fresh one');
+  const self = state.payload.session.participants.find((p) => p.participantId === viewerId);
+  assert.equal(self?.state, 'connected', 'resumed straight in, not re-queued as pending');
+
+  // The host is never bothered with a prompt for someone it already approved.
+  await host.never('session.viewer.pending');
+
+  // And negotiation works immediately, over the new socket.
+  host.send({ type: 'rtc.offer', to: viewerId, sdp: SDP });
+  const offer = await returning.next('rtc.offer');
+  if (offer.payload.type !== 'rtc.offer') assert.fail('wrong type');
+  assert.equal(offer.payload.sdp, SDP);
+
+  host.close();
+  returning.close();
+  await settle();
+});
+
+test('a resume with the wrong token cannot steal a slot someone else is still holding', async () => {
+  // The real viewer is only away, not gone — its approved slot is held for
+  // the whole grace period — so a mismatched resume falls back to an ordinary
+  // request and meets the same one-viewer-at-a-time rule anyone else would.
+  // It must not be handed the seat just because it guessed the participant id.
+  const { host, code } = await attachedHost();
+
+  const viewer = await Client.open();
+  viewer.send({ type: 'session.viewer.request', joinCode: code });
+  const pending = await host.next('session.viewer.pending');
+  if (pending.payload.type !== 'session.viewer.pending') assert.fail('wrong type');
+  const viewerId = pending.payload.request.participantId;
+  host.send({ type: 'session.viewer.approve', participantId: viewerId });
+  await viewer.next('session.viewer.approved');
+
+  viewer.close();
+  await settle();
+
+  const impostor = await Client.open();
+  impostor.send({
+    type: 'session.viewer.request',
+    joinCode: code,
+    resume: { participantId: viewerId, participantToken: 'not-the-real-token' },
+  });
+
+  const err = await impostor.next('error');
+  if (err.payload.type !== 'error') assert.fail('wrong type');
+  assert.equal(err.payload.code, 'SESSION_FULL');
+  await host.never('session.viewer.pending');
+
+  host.close();
+  impostor.close();
+  await settle();
+});
+
 test('a code with no live session answers the same as a guessed one', async () => {
   // Both must be SESSION_NOT_FOUND, so enumerating codes reveals nothing about
   // which sessions exist.
@@ -476,6 +558,31 @@ test('a host socket dropping is held, not announced as an ending', async () => {
 
   await viewer.never('session.ended');
 
+  viewer.close();
+  await settle();
+});
+
+test('an approved viewer leaving on purpose is told to the host immediately, not held', async () => {
+  // The point of session.viewer.leave: without it, a deliberate departure is
+  // indistinguishable from a dropped socket, and the host would go on seeing
+  // "watching" until the away-viewer grace period ran out on its own.
+  const { host, code } = await attachedHost();
+
+  const viewer = await Client.open();
+  viewer.send({ type: 'session.viewer.request', joinCode: code });
+  const pending = await host.next('session.viewer.pending');
+  if (pending.payload.type !== 'session.viewer.pending') assert.fail('wrong type');
+  const viewerId = pending.payload.request.participantId;
+  host.send({ type: 'session.viewer.approve', participantId: viewerId });
+  await viewer.next('session.viewer.approved');
+
+  viewer.send({ type: 'session.viewer.leave' });
+
+  const left = await host.next('peer.left');
+  if (left.payload.type !== 'peer.left') assert.fail('wrong type');
+  assert.equal(left.payload.participantId, viewerId);
+
+  host.close();
   viewer.close();
   await settle();
 });

@@ -129,6 +129,12 @@ export const config = {
    * for a host that has stopped trying.
    */
   hostGraceMs: intFromEnv('HOST_GRACE_MS', 90_000, 1_000, 60 * 60 * 1_000),
+  /**
+   * The same idea, for an approved viewer's socket dropping. Same default and
+   * same reasoning: past the client's own one-minute give-up point, holding
+   * the slot only keeps a viewer nobody is returning as from watching.
+   */
+  viewerGraceMs: intFromEnv('VIEWER_GRACE_MS', 90_000, 1_000, 60 * 60 * 1_000),
   // LOG_LEVEL is deliberately absent. It is read in log.ts instead, because
   // this module logs its own rejections and cannot import a logger that
   // imports it back. A `logLevel` here would be read by nothing and changing

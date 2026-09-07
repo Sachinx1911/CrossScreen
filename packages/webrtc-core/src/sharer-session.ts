@@ -329,7 +329,18 @@ export class SharerSession extends Emitter<SharerEvents> {
     // state and lets the client retry, rather than ending a session whose
     // picture is still moving.
     signaling.onState((state) => {
-      if (state === 'reconnecting') this.emit('connection', { state: 'reconnecting' });
+      if (state === 'reconnecting') {
+        this.emit('connection', { state: 'reconnecting' });
+        return;
+      }
+      // Reverts it once signaling is back. Without this, "Reconnecting…" never
+      // went away on its own: nothing else re-reads the peer connection's own
+      // state, which very often has not changed at all during an outage that
+      // was only ever a signaling-socket problem.
+      const [first] = this.#peers.values();
+      if (state === 'open' && first !== undefined) {
+        this.emit('connection', { state: userFacingState(first.pc.connectionState) });
+      }
     });
 
     // Back on a new socket, which the server has never seen. Re-presenting the

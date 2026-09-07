@@ -18,6 +18,12 @@ export interface StaleJoinRequest {
   viewer: Viewer;
 }
 
+/** One approved viewer whose grace period ran out, and the session it left. */
+export interface GoneViewer {
+  session: LiveSession;
+  viewer: Viewer;
+}
+
 /**
  * Where live sessions live.
  *
@@ -36,6 +42,8 @@ export interface SessionStore {
   sweep(now?: number, timeouts?: SweepTimeouts): LiveSession[];
   /** Reject pending viewers who have waited past the join-request timeout. */
   expireStaleJoinRequests(timeoutMs: number, now?: number): StaleJoinRequest[];
+  /** Drop approved viewers whose socket has been away past the grace period. */
+  expireAwayViewers(graceMs: number, now?: number): GoneViewer[];
   readonly size: number;
 }
 
@@ -97,6 +105,16 @@ export class InMemorySessionStore implements SessionStore {
       }
     }
     return expired;
+  }
+
+  expireAwayViewers(graceMs: number, now = Date.now()): GoneViewer[] {
+    const gone: GoneViewer[] = [];
+    for (const session of this.#byId.values()) {
+      for (const viewer of session.expireAwayViewers(graceMs, now)) {
+        gone.push({ session, viewer });
+      }
+    }
+    return gone;
   }
 }
 

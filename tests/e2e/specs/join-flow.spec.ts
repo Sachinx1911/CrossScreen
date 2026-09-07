@@ -438,6 +438,11 @@ test('a session left claimed and empty expires, and tells the host why in plain 
   // minutes. This is the path that used to leak the raw protocol word
   // "idle_timeout" straight to the host — the viewer side already translated
   // it into a sentence, the host side just passed the enum through.
+  //
+  // Closing the *page* rather than the whole context: that is what fires
+  // `pagehide`, which is how a viewer who is plainly done is told apart from
+  // one whose socket merely dropped (§2.3) — a dropped socket is now held for
+  // a grace period, and the idle clock does not even start until it gives up.
   const host = await browser.newContext();
   const guest = await browser.newContext();
   const sharer = await host.newPage();
@@ -449,7 +454,7 @@ test('a session left claimed and empty expires, and tells the host why in plain 
   await sharer.getByRole('button', { name: 'Allow' }).click();
   await expect(viewer.locator('video')).toBeVisible();
 
-  await guest.close();
+  await viewer.close();
 
   await expect(sharer.getByText('The session ended because nobody was watching.')).toBeVisible({
     timeout: 10_000,
@@ -457,6 +462,7 @@ test('a session left claimed and empty expires, and tells the host why in plain 
   await expect(sharer.locator('body')).not.toContainText('idle_timeout');
 
   await host.close();
+  await guest.close();
 });
 
 test('joining by typed code works the same as by link', async ({ browser }) => {

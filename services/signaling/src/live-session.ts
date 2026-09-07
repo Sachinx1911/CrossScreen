@@ -26,7 +26,8 @@ export type ViewerState = 'pending' | 'approved' | 'rejected';
 
 export interface Viewer {
   readonly id: string;
-  readonly socket: WebSocket;
+  /** Mutable: `rebindViewer` swaps this when a resumed viewer reconnects. */
+  socket: WebSocket;
   readonly deviceLabel: string;
   readonly approximateLocation: string | undefined;
   readonly joinedVia: 'code' | 'link';
@@ -35,6 +36,15 @@ export interface Viewer {
   /** Issued on approval only. Scoped to this session and this participant. */
   token: string | undefined;
   approvedAt: number | undefined;
+  /**
+   * When this viewer's socket dropped, if it is currently gone.
+   *
+   * The host-side mirror of `LiveSession.hostAwaySince`, for the same reason:
+   * a viewer losing signaling has not stopped watching — media is
+   * peer-to-peer and the RTCPeerConnection never noticed — so this is held
+   * rather than removed outright (phase-2-reliability.md §2.3).
+   */
+  awaySince: number | undefined;
 }
 
 export class LiveSession {
@@ -117,6 +127,7 @@ export class LiveSession {
       state: 'pending',
       token: undefined,
       approvedAt: undefined,
+      awaySince: undefined,
     };
     this.#viewers.set(viewer.id, viewer);
     this.emptySince = undefined;
@@ -178,6 +189,40 @@ export class LiveSession {
       this.removeViewer(viewer.id, now);
     }
     return stale;
+  }
+
+  /**
+   * Approved viewers who have been away longer than the grace period are
+   * genuinely gone — their own client stops retrying before this — and are
+   * removed, so the host is told `peer.left` at that point rather than the
+   * instant their socket happened to drop.
+   */
+  expireAwayViewers(graceMs: number, now = Date.now()): Viewer[] {
+    const gone = this.viewers.filter(
+      (viewer) => viewer.awaySince !== undefined && now - viewer.awaySince >= graceMs,
+    );
+    for (const viewer of gone) this.removeViewer(viewer.id, now);
+    return gone;
+  }
+
+  /**
+   * A previously approved viewer is back, on a new socket, presenting the
+   * token it was issued at approval.
+   *
+   * Returns `undefined` for anything that does not check out — wrong token,
+   * no such participant, already removed by `expireAwayViewers`, or never
+   * approved in the first place — and the caller's answer to that is to treat
+   * the request as an ordinary fresh one rather than an error. A resume that
+   * cannot be honoured should look exactly like joining for the first time.
+   */
+  rebindViewer(participantId: string, token: string, socket: WebSocket): Viewer | undefined {
+    const viewer = this.#viewers.get(participantId);
+    if (viewer?.state !== 'approved' || viewer.token !== token) {
+      return undefined;
+    }
+    viewer.socket = socket;
+    viewer.awaySince = undefined;
+    return viewer;
   }
 
   /**

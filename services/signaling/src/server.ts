@@ -148,6 +148,27 @@ const joinRequestSweep = setInterval(() => {
 }, 1_000);
 joinRequestSweep.unref();
 
+// The viewer-side mirror: an approved viewer's socket dropped and never came
+// back within `viewerGraceMs`. Only now — not the instant it dropped — is the
+// host told, because up to this point the picture was very likely still
+// playing on a peer connection this socket was never part of.
+const awayViewerSweep = setInterval(() => {
+  for (const { session, viewer } of store.expireAwayViewers(config.viewerGraceMs)) {
+    send(session.hostSocket, { type: 'peer.left', participantId: viewer.id });
+    recorder.sessionEvent({
+      sessionId: session.sessionId,
+      event: 'viewer_left',
+      participantId: viewer.id,
+      detail: { reason: 'away_timed_out' },
+    });
+    log.info('viewer.away_timed_out', {
+      sessionId: session.sessionId,
+      participantId: viewer.id,
+    });
+  }
+}, 1_000);
+awayViewerSweep.unref();
+
 function onListenError(err: NodeJS.ErrnoException): void {
   if (err.code === 'EADDRINUSE') {
     log.error('signaling.port_in_use', {

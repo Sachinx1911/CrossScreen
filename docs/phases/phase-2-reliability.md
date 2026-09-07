@@ -101,12 +101,42 @@ the same participant without a second approval round.
 > session is only declared lost once retrying gives up, by which point the
 > server really has swept it.
 >
-> **Still to do for the rest of §2.3:** the recovery token itself, so a
-> returning viewer resumes without a second approval; a server-side grace
-> period, since a host's socket dropping currently ends the session for
-> everyone immediately; and ICE restart, so the _media_ path recovers from a
-> network change rather than only the signaling one. `rtc.restart` exists in
-> the protocol and is relayed, but nothing sends it yet.
+> **Host-side grace period landed 2026-09-07.** A dropped host socket is held
+> for 90 seconds (`LiveSession.hostGraceMs`) rather than ending the session on
+> the spot, and a reattaching host rebinds to its existing session by id, so an
+> approved viewer's participant list is not silently stranded. A genuinely
+> closed tab still ends things immediately via `pagehide` sending
+> `session.end`. See the commit for the `expired` vs `host_ended` distinction.
+>
+> **Viewer-side resume landed 2026-09-07**, the symmetric half of the host
+> grace period above. An approved viewer's socket dropping is held for the
+> same 90 seconds (`LiveSession`'s per-viewer `awaySince`, `config.viewerGraceMs`)
+> instead of removing it and telling the host `peer.left` on the spot. On
+> reconnect, `ViewerSession` presents the `participantId`/`participantToken`
+> it was issued at approval in a `resume` field on `session.viewer.request`;
+> the server rebinds the existing viewer rather than re-queuing it as pending,
+> so it resumes watching with no second approval round. A resume that does not
+> check out — wrong token, already reclaimed by the grace sweep, never
+> approved — is not an error: it falls straight through to an ordinary fresh
+> request, which is what a mismatch should look like.
+>
+> A deliberately closed tab needed the same treatment the host got: a new
+> `session.viewer.leave` message, sent on `pagehide` and from `stop()`, removes
+> the viewer immediately and tells the host right away, rather than the
+> departure being indistinguishable from a network blip and sitting in the
+> grace window for 90 seconds first.
+>
+> One more gap this closed in passing: `SignalingClient.onState` told the UI
+> to show "Reconnecting…" but never told it to stop — nothing else re-read the
+> peer connection's own state once signaling came back, so the label could get
+> stuck showing forever after a purely signaling-side outage. Both sessions now
+> re-emit the real connection state on `state === 'open'`.
+>
+> **Still open in §2.3:** ICE restart, so the _media_ path itself recovers from
+> a real network change rather than only the signaling socket reconnecting
+> around it. `rtc.restart` exists in the protocol and is relayed, but nothing
+> sends it yet — that is the one piece of the reconnection story genuinely
+> untouched.
 
 ### 2.4 — Stats pipeline
 

@@ -298,6 +298,111 @@ test('a host that comes back keeps the viewers it already approved', () => {
   );
 });
 
+test('a resuming viewer presenting the right token gets its slot back', () => {
+  const now = Date.now();
+  const session = new LiveSession(claims(now), fakeSocket(), now);
+  const viewer = session.addViewer({
+    deviceLabel: 'Windows · Chrome',
+    approximateLocation: undefined,
+    joinedVia: 'code',
+    socket: fakeSocket(),
+    now,
+  });
+  session.approve(viewer.id, now);
+  viewer.awaySince = now;
+  const token = viewer.token;
+  assert.ok(token);
+
+  const newSocket = fakeSocket();
+  const resumed = session.rebindViewer(viewer.id, token, newSocket);
+
+  assert.equal(resumed, viewer);
+  assert.equal(viewer.socket, newSocket, 'talking over the new socket');
+  assert.equal(viewer.awaySince, undefined, 'no longer away');
+  assert.equal(viewer.state, 'approved', 'still approved, not re-queued');
+  assert.equal(session.mayRelay(session.hostId, viewer.id), true, 'negotiation can resume');
+});
+
+test('a resume attempt is refused for a wrong token, an unknown id, or a viewer never approved', () => {
+  const now = Date.now();
+  const session = new LiveSession(claims(now), fakeSocket(), now);
+  const approved = session.addViewer({
+    deviceLabel: 'Windows · Chrome',
+    approximateLocation: undefined,
+    joinedVia: 'code',
+    socket: fakeSocket(),
+    now,
+  });
+  session.approve(approved.id, now);
+
+  const pending = session.addViewer({
+    deviceLabel: 'Mac · Safari',
+    approximateLocation: undefined,
+    joinedVia: 'link',
+    socket: fakeSocket(),
+    now,
+  });
+
+  assert.equal(
+    session.rebindViewer(approved.id, 'a-token-nobody-issued', fakeSocket()),
+    undefined,
+    'wrong token',
+  );
+  assert.equal(
+    session.rebindViewer(crypto.randomUUID(), approved.token ?? '', fakeSocket()),
+    undefined,
+    'no such participant',
+  );
+  assert.equal(
+    session.rebindViewer(pending.id, 'anything', fakeSocket()),
+    undefined,
+    'never approved — nothing to resume',
+  );
+});
+
+test('an approved viewer being briefly away does not lose its slot', () => {
+  // Mirrors the host-side grace test: a blip is not an ending, and the
+  // picture is very likely still moving — media never touched that socket.
+  const now = Date.now();
+  const session = new LiveSession(claims(now), fakeSocket(), now);
+  const viewer = session.addViewer({
+    deviceLabel: 'Android · Chrome',
+    approximateLocation: undefined,
+    joinedVia: 'code',
+    socket: fakeSocket(),
+    now,
+  });
+  session.approve(viewer.id, now);
+  viewer.awaySince = now;
+
+  assert.deepEqual(
+    session.expireAwayViewers(90_000, now + 30_000),
+    [],
+    'still inside the grace period',
+  );
+  assert.equal(session.viewer(viewer.id), viewer, 'not removed');
+
+  const gone = session.expireAwayViewers(90_000, now + 91_000);
+  assert.deepEqual(gone, [viewer]);
+  assert.equal(session.viewer(viewer.id), undefined, 'removed once the grace period is up');
+});
+
+test('a viewer who never left is untouched by the away sweep', () => {
+  const now = Date.now();
+  const session = new LiveSession(claims(now), fakeSocket(), now);
+  const viewer = session.addViewer({
+    deviceLabel: 'Windows · Edge',
+    approximateLocation: undefined,
+    joinedVia: 'code',
+    socket: fakeSocket(),
+    now,
+  });
+  session.approve(viewer.id, now);
+
+  assert.deepEqual(session.expireAwayViewers(90_000, now + 60 * 60_000), []);
+  assert.equal(session.viewer(viewer.id), viewer);
+});
+
 test('with no host grace configured, a session is judged only on its other clocks', () => {
   // The protocol constants carry no opinion about host absence, so a caller
   // passing them unchanged must not have sessions expiring out from under it.

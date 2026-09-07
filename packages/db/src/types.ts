@@ -13,6 +13,7 @@ export type SessionEventName =
   | 'viewer_requested'
   | 'viewer_approved'
   | 'viewer_rejected'
+  | 'viewer_left'
   | 'connected'
   | 'ended';
 

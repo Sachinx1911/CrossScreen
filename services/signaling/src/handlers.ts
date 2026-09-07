@@ -155,6 +155,41 @@ function viewerRequest(
     return;
   }
 
+  // Tried before the one-viewer check below, deliberately: a viewer resuming
+  // its own slot must never be turned away as "full" by itself. A resume that
+  // does not check out — wrong token, already reclaimed by the grace-period
+  // sweep — falls straight through to an ordinary fresh request rather than
+  // an error (§2.3): it should look exactly like joining for the first time.
+  if (payload.resume !== undefined) {
+    const resumed = session.rebindViewer(
+      payload.resume.participantId,
+      payload.resume.participantToken,
+      connection.socket,
+    );
+    if (resumed !== undefined) {
+      connection.sessionId = session.sessionId;
+      connection.participantId = resumed.id;
+      connection.role = 'viewer';
+
+      send(
+        connection.socket,
+        { type: 'session.state', session: session.summary(), you: resumed.id },
+        id,
+      );
+      // The host was never told this viewer left — the grace period exists
+      // precisely so it would not be — so there is nothing for it to be told
+      // now either.
+      connection.recorder.sessionEvent({
+        sessionId: session.sessionId,
+        event: 'viewer_approved',
+        participantId: resumed.id,
+        detail: { resumed: true },
+      });
+      log.info('viewer.resumed', { sessionId: session.sessionId, participantId: resumed.id });
+      return;
+    }
+  }
+
   // Phase 1 is one sharer, one viewer (architecture §11) — a second stranger
   // is turned away before the host is ever bothered with a prompt for a
   // request that could not be approved anyway. Revisit for Phase 5's mesh.
@@ -320,6 +355,34 @@ function endSession(connection: Connection, id: string, store: SessionStore): vo
 }
 
 /**
+ * A viewer says it is leaving on purpose.
+ *
+ * The mirror of `endSession`: removed immediately rather than held for the
+ * away-viewer grace period, because this is the case that grace period exists
+ * to be skipped for — a genuine departure, not a dropped socket (§2.3). It
+ * runs ahead of the socket actually closing, so by the time `handleDisconnect`
+ * fires for real there is no viewer left in the session for it to hold.
+ */
+function viewerLeave(connection: Connection, store: SessionStore): void {
+  if (connection.role !== 'viewer' || connection.sessionId === undefined) return;
+  const session = store.byId(connection.sessionId);
+  if (session === undefined || connection.participantId === undefined) return;
+
+  const viewer = session.viewer(connection.participantId);
+  if (viewer === undefined) return;
+
+  session.removeViewer(viewer.id);
+  send(session.hostSocket, { type: 'peer.left', participantId: viewer.id });
+  connection.recorder.sessionEvent({
+    sessionId: session.sessionId,
+    event: 'viewer_left',
+    participantId: viewer.id,
+    detail: { reason: 'left' },
+  });
+  log.info('viewer.left', { sessionId: session.sessionId, participantId: viewer.id });
+}
+
+/**
  * Relay one negotiation message.
  *
  * The client's `to` is checked rather than trusted, and replaced with a
@@ -389,6 +452,9 @@ export async function handleMessage(
     case 'session.end':
       endSession(connection, id, store);
       return;
+    case 'session.viewer.leave':
+      viewerLeave(connection, store);
+      return;
     case 'rtc.offer':
     case 'rtc.answer':
     case 'rtc.ice':
@@ -439,11 +505,25 @@ export function handleDisconnect(connection: Connection, store: SessionStore): v
     return;
   }
 
-  if (connection.participantId !== undefined && session.removeViewer(connection.participantId)) {
-    send(session.hostSocket, { type: 'peer.left', participantId: connection.participantId });
-    log.info('viewer.left', {
-      sessionId: session.sessionId,
-      participantId: connection.participantId,
-    });
+  if (connection.participantId === undefined) return;
+  const viewer = session.viewer(connection.participantId);
+  if (viewer === undefined) return;
+
+  if (viewer.state === 'approved') {
+    // The viewer-side mirror of the host branch above, for the same reason:
+    // media is peer-to-peer, so whatever this viewer was watching is very
+    // often still playing while signaling is away. Held rather than removed;
+    // `expireAwayViewers` drops it once the grace period actually runs out,
+    // and only then is the host told `peer.left`.
+    viewer.awaySince = Date.now();
+    log.info('viewer.away', { sessionId: session.sessionId, participantId: viewer.id });
+    return;
   }
+
+  // A pending request has no connection to preserve — there is nothing
+  // playing yet — so it is removed immediately, the same as an explicit
+  // leave or rejection, clearing the prompt on the host's screen right away.
+  session.removeViewer(viewer.id);
+  send(session.hostSocket, { type: 'peer.left', participantId: viewer.id });
+  log.info('viewer.left', { sessionId: session.sessionId, participantId: viewer.id });
 }
