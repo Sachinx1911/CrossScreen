@@ -4,11 +4,12 @@ import {
   extractJoinToken,
   isValidJoinCode,
   normaliseJoinCode,
+  type ConnectionQuality,
   type ConnectionState,
 } from '@crossscreen/protocol';
-import { ApiClient, ViewerSession, type ViewerPhase } from '@crossscreen/webrtc-core';
+import { ApiClient, qualityFrom, ViewerSession, type ViewerPhase } from '@crossscreen/webrtc-core';
 
-import { Button, Card, StatusDot } from './components.tsx';
+import { Button, Card, QualityBadge, StatusDot } from './components.tsx';
 import { apiBaseUrl, forceRelay, signalingUrl } from './config.ts';
 
 type Stage = 'entering-code' | ViewerPhase;
@@ -28,6 +29,7 @@ export function Joiner({ onBack }: { onBack: () => void }) {
   const [problem, setProblem] = useState<string | undefined>();
   const [message, setMessage] = useState<string | undefined>();
   const [connection, setConnection] = useState<ConnectionState>('connecting');
+  const [quality, setQuality] = useState<ConnectionQuality | undefined>();
   const [stream, setStream] = useState<MediaStream | undefined>();
 
   const video = useRef<HTMLVideoElement | null>(null);
@@ -72,6 +74,9 @@ export function Joiner({ onBack }: { onBack: () => void }) {
     viewer.on('connection', ({ state }) => {
       setConnection(state);
     });
+    viewer.on('stats', (snapshot) => {
+      setQuality(qualityFrom(snapshot));
+    });
 
     void viewer.start();
   }
@@ -80,6 +85,7 @@ export function Joiner({ onBack }: { onBack: () => void }) {
     session.current?.stop();
     session.current = undefined;
     setStream(undefined);
+    setQuality(undefined);
     setMessage(undefined);
     setCode('');
     setStage('entering-code');
@@ -89,7 +95,14 @@ export function Joiner({ onBack }: { onBack: () => void }) {
     return (
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <StatusDot state={connection} />
+          <div className="flex items-center gap-4">
+            <StatusDot state={connection} />
+            {/* Only once actually connected — quality means nothing while
+                still negotiating, and StatusDot already covers that wait. */}
+            {connection === 'connected' && quality !== undefined && (
+              <QualityBadge quality={quality} />
+            )}
+          </div>
           <Button variant="secondary" onClick={leave}>
             Leave
           </Button>

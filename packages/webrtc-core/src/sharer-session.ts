@@ -5,7 +5,12 @@ import { Emitter } from './events.ts';
 import { IceCandidateQueue } from './ice-queue.ts';
 import { FORCE_RELAY_REQUIRES_TURN, hasTurnServer } from './relay.ts';
 import { SignalingClient } from './signaling-client.ts';
-import { formatSnapshot, readConnectionSnapshot, type ConnectionSnapshot } from './stats.ts';
+import {
+  formatSnapshot,
+  readConnectionSnapshot,
+  type ConnectionSnapshot,
+  type RawCounters,
+} from './stats.ts';
 import { tuneScreenShare, type QualityMode } from './tuning.ts';
 
 /**
@@ -70,16 +75,83 @@ export function userFacingState(state: RTCPeerConnectionState): ConnectionState 
   }
 }
 
-/** Connection quality as the user sees it, from what was measured. */
-export function qualityFrom(
-  snapshot: ConnectionSnapshot,
-): 'excellent' | 'good' | 'poor' | 'unstable' {
-  const rtt = snapshot.roundTripMs;
-  if (rtt === undefined) return 'good';
-  if (rtt < 60) return 'excellent';
-  if (rtt < 150) return 'good';
-  if (rtt < 400) return 'poor';
-  return 'unstable';
+type Quality = 'excellent' | 'good' | 'poor' | 'unstable';
+const RANKS: readonly Quality[] = ['unstable', 'poor', 'good', 'excellent'];
+
+/**
+ * Round-trip time against ITU-T G.114's guidance for interactive
+ * communication (150 ms one-way is imperceptible, 400 ms one-way is where
+ * most people start to notice) doubled for round-trip. Not a project
+ * baseline — no cross-network RTT was ever logged during Phase 0.5, only
+ * same-machine and same-LAN readings of ~1 ms, which say nothing about a real
+ * link (docs/phases/phase-0.5-walking-skeleton.md).
+ */
+function rttRank(ms: number): number {
+  if (ms < 60) return 3;
+  if (ms < 150) return 2;
+  if (ms < 400) return 1;
+  return 0;
+}
+
+/**
+ * Packet loss against commonly cited video-conferencing guidance (under 1%
+ * is imperceptible, above 5% is visibly broken). Also not a project
+ * baseline — nothing measured loss at all before this phase.
+ */
+function lossRank(pct: number): number {
+  if (pct < 1) return 3;
+  if (pct < 2.5) return 2;
+  if (pct < 5) return 1;
+  return 0;
+}
+
+/**
+ * Available bandwidth, unlike bitrate, is meaningful on its own regardless of
+ * how much the current frame actually needs — a static screen legitimately
+ * sends almost nothing while healthy (`degradationPreference:
+ * 'maintain-resolution'`, architecture §9), so grading quality by bytes
+ * actually sent would call an idle, perfectly good connection "unstable".
+ *
+ * This is the one dimension with real project numbers behind it:
+ * `avail=300kbps` and `avail=5302kbps` are both from passing Phase 0.5 runs
+ * (Windows and macOS, 2026-09-05/06) — 300 is a floor that was still watchable
+ * at 1080p, 5302 is comfortably above what any of this needs. 1000 sits
+ * between them as the "no longer worth calling merely good" line.
+ */
+function bandwidthRank(kbps: number): number {
+  if (kbps >= 1000) return 3;
+  if (kbps >= 300) return 2;
+  if (kbps >= 150) return 1;
+  return 0;
+}
+
+/**
+ * Connection quality as the user sees it — the weakest of whichever
+ * dimensions were actually measured, per phase-2-reliability.md §2.5: "derived
+ * from measured round-trip time, packet loss and bitrate, rather than from
+ * connection state alone."
+ *
+ * "Weakest of the measured dimensions" rather than an average: a link with a
+ * fine round-trip time and 8% loss is not "good on balance", it is bad, and
+ * averaging would hide exactly the dimension someone needs to see.
+ *
+ * Bandwidth is read from `availableOutgoingKbps`/`availableIncomingKbps`
+ * (ICE's own estimate) rather than `bitrateKbps` (what was actually sent) —
+ * see `bandwidthRank`'s own comment for why actual throughput is the wrong
+ * signal to grade by.
+ */
+export function qualityFrom(snapshot: ConnectionSnapshot): Quality {
+  const ranks: number[] = [];
+  if (snapshot.roundTripMs !== undefined) ranks.push(rttRank(snapshot.roundTripMs));
+  if (snapshot.packetLossPct !== undefined) ranks.push(lossRank(snapshot.packetLossPct));
+  const bandwidth = snapshot.availableOutgoingKbps ?? snapshot.availableIncomingKbps;
+  if (bandwidth !== undefined) ranks.push(bandwidthRank(bandwidth));
+
+  // Stats are absent for the first second or two of every session. Reporting
+  // "unstable" then would make every connection look broken as it starts.
+  if (ranks.length === 0) return 'good';
+
+  return RANKS[Math.min(...ranks)] ?? 'unstable';
 }
 
 export class SharerSession extends Emitter<SharerEvents> {
@@ -103,6 +175,8 @@ export class SharerSession extends Emitter<SharerEvents> {
   >();
   #iceServers: RTCIceServer[] = [];
   #statsTimer: ReturnType<typeof setInterval> | undefined;
+  /** The previous tick's raw counters, so `readConnectionSnapshot` can derive a rate rather than reporting one sample in isolation. */
+  #previousRaw: RawCounters | undefined;
   #session: CreatedSession | undefined;
   #stopped = false;
   /**
@@ -481,16 +555,22 @@ export class SharerSession extends Emitter<SharerEvents> {
       const [first] = this.#peers.values();
       if (first === undefined) return;
 
-      void readConnectionSnapshot(first.pc).then((snapshot) => {
+      void readConnectionSnapshot(first.pc, this.#previousRaw).then(({ snapshot, raw }) => {
+        this.#previousRaw = raw;
         this.emit('stats', snapshot);
         // Reported so Phase 2 can answer the question that predicts TURN
-        // cost: what fraction of connections go direct rather than relayed.
+        // cost: what fraction of connections go direct rather than relayed,
+        // and (2.4/2.5) how good this one actually is right now.
         this.#signaling?.send({
           type: 'stats.report',
           quality: qualityFrom(snapshot),
           connectionState: userFacingState(first.pc.connectionState),
           transport: snapshot.transport,
           ...(snapshot.roundTripMs === undefined ? {} : { roundTripMs: snapshot.roundTripMs }),
+          ...(snapshot.packetLossPct === undefined
+            ? {}
+            : { packetLossPct: snapshot.packetLossPct }),
+          ...(snapshot.bitrateKbps === undefined ? {} : { bitrateKbps: snapshot.bitrateKbps }),
           ...(snapshot.resolution === undefined ? {} : { resolution: snapshot.resolution }),
           ...(snapshot.codec === undefined ? {} : { codec: snapshot.codec }),
           ...(snapshot.framesPerSecond === undefined

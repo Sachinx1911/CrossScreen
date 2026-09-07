@@ -218,6 +218,60 @@ The mockup's "Good Connection" label becomes real: derived from measured
 round-trip time, packet loss and bitrate rather than from connection state
 alone. Thresholds are set from Phase 0.5 and Phase 1 baselines, not invented.
 
+> **2.5 done, 2026-09-07.** Two problems, not one: `qualityFrom` graded on
+> round-trip time alone, and — found while fixing that — `packetLossPct` and
+> `bitrateKbps` were never actually computed. `stats.report`'s schema had
+> carried both since before this phase, `connection_stats` grew columns for
+> both in 2.4, and neither client ever filled them in; every row 2.4 added
+> those columns for was going to read `null` forever. `getStats()` only ever
+> hands back cumulative counters, so a rate needs two samples — the previous
+> tick's raw counters now travel with `SharerSession` and `ViewerSession`
+> across their `#startStats` intervals and get threaded back into
+> `readConnectionSnapshot` (`packages/webrtc-core/src/stats.ts`), which is
+> also where the two derivations (`deriveBitrateKbps`, `derivePacketLossPct`)
+> live as pure, independently tested functions.
+>
+> `qualityFrom` now grades the _weakest_ of whichever dimensions were actually
+> measured — round-trip time, packet loss, and available bandwidth (not
+> `bitrateKbps` itself: a static screen legitimately sends almost nothing
+> while perfectly healthy under `maintain-resolution`, so grading by bytes
+> actually sent would call an idle, healthy connection "unstable"; the ICE
+> layer's own bandwidth _estimate_ has no such problem). "Weakest", not an
+> average — a connection with a fine round-trip time and 8% loss is bad, full
+> stop, and averaging would hide exactly the number worth seeing.
+>
+> **Thresholds, honestly sourced, not uniformly a project baseline.**
+> Bandwidth is the one dimension with real numbers behind it: `avail=300kbps`
+> and `avail=5302kbps` are both from passing Phase 0.5 runs
+> ([Windows and macOS, 2026-09-05/06](phase-0.5-walking-skeleton.md)) — 300
+> was still watchable at 1080p, 5302 is comfortably above what any of this
+> needs. Round-trip time and packet loss are not: every RTT Phase 0.5 ever
+> logged was a same-machine or same-LAN reading of about 1 ms, which says
+> nothing about a real link, and nothing measured loss at all before this
+> phase. Those two use commonly cited reference points instead (ITU-T G.114
+> for round-trip time, standard video-conferencing guidance for loss —
+> `qualityFrom`'s own comments carry the numbers and the reasoning) — real,
+> not invented, but not this project's own data either. Worth revisiting once
+> real usage produces a dataset.
+>
+> The mockup's label itself now exists: `QualityBadge` (`apps/web`'s
+> `Primitives.tsx`, `apps/desktop`'s `components.tsx`) sits next to
+> `StatusDot` on both viewer surfaces, shown once a connection actually
+> reaches `connected` — quality means nothing while still negotiating, and
+> `StatusDot` already covers that wait.
+>
+> 12 new unit tests in `stats.test.ts` and `sharer-session.test.ts` cover the
+> two derivations directly (two-sample requirement, the arithmetic, clock and
+> counter-reset guards) and `qualityFrom`'s per-dimension grading and
+> weakest-wins behaviour. Full monorepo build, lint, typecheck and unit suite
+> (55 webrtc-core tests, up from 43); pnpm format; a markdown link check; and
+> the full 18-test Playwright E2E suite, all green. Not exercised against a
+> real degraded link this session, the same disclosed gap as ICE restart in
+> §2.3 — Playwright's network interception cannot touch the UDP path WebRTC
+> actually uses, so `deriveBitrateKbps`/`derivePacketLossPct` are proven
+> correct against synthetic counters, not against a connection genuinely
+> losing packets.
+
 ### 2.6 — Sentry
 
 Errors from all three surfaces, with the session id attached so a report can

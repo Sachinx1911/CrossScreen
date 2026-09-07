@@ -6,7 +6,12 @@ import { IceCandidateQueue } from './ice-queue.ts';
 import { FORCE_RELAY_REQUIRES_TURN, hasTurnServer } from './relay.ts';
 import { qualityFrom, userFacingState } from './sharer-session.ts';
 import { SignalingClient } from './signaling-client.ts';
-import { formatSnapshot, readConnectionSnapshot, type ConnectionSnapshot } from './stats.ts';
+import {
+  formatSnapshot,
+  readConnectionSnapshot,
+  type ConnectionSnapshot,
+  type RawCounters,
+} from './stats.ts';
 
 /**
  * Watching someone else's screen.
@@ -47,6 +52,8 @@ export class ViewerSession extends Emitter<ViewerEvents> {
   #pc: RTCPeerConnection | undefined;
   #ice: IceCandidateQueue | undefined;
   #statsTimer: ReturnType<typeof setInterval> | undefined;
+  /** The previous tick's raw counters, so `readConnectionSnapshot` can derive a rate rather than reporting one sample in isolation. */
+  #previousRaw: RawCounters | undefined;
   #iceServers: RTCIceServer[] = [];
   #stopped = false;
   /** Who to ask for an ICE restart. Set from the first offer's `from`. */
@@ -359,7 +366,8 @@ export class ViewerSession extends Emitter<ViewerEvents> {
       const pc = this.#pc;
       if (pc === undefined) return;
 
-      void readConnectionSnapshot(pc).then((snapshot) => {
+      void readConnectionSnapshot(pc, this.#previousRaw).then(({ snapshot, raw }) => {
+        this.#previousRaw = raw;
         this.emit('stats', snapshot);
         this.#signaling?.send({
           type: 'stats.report',
@@ -367,8 +375,15 @@ export class ViewerSession extends Emitter<ViewerEvents> {
           connectionState: userFacingState(pc.connectionState),
           transport: snapshot.transport,
           ...(snapshot.roundTripMs === undefined ? {} : { roundTripMs: snapshot.roundTripMs }),
+          ...(snapshot.packetLossPct === undefined
+            ? {}
+            : { packetLossPct: snapshot.packetLossPct }),
+          ...(snapshot.bitrateKbps === undefined ? {} : { bitrateKbps: snapshot.bitrateKbps }),
           ...(snapshot.resolution === undefined ? {} : { resolution: snapshot.resolution }),
           ...(snapshot.codec === undefined ? {} : { codec: snapshot.codec }),
+          ...(snapshot.framesPerSecond === undefined
+            ? {}
+            : { framesPerSecond: snapshot.framesPerSecond }),
         });
         console.debug('[viewer]', formatSnapshot(snapshot));
       });

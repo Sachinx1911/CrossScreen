@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 
-import type { ConnectionState } from '@crossscreen/protocol';
-import { ApiClient, ViewerSession, type ViewerPhase } from '@crossscreen/webrtc-core';
+import type { ConnectionQuality, ConnectionState } from '@crossscreen/protocol';
+import { ApiClient, qualityFrom, ViewerSession, type ViewerPhase } from '@crossscreen/webrtc-core';
 
 import { useFullscreen } from '../components/Fullscreen.tsx';
-import { Button, Card, Notice, StatusDot } from '../components/Primitives.tsx';
+import { Button, Card, Notice, QualityBadge, StatusDot } from '../components/Primitives.tsx';
 import { apiBaseUrl, forceRelay, signalingUrl } from '../config.ts';
 import { navigate } from '../router.ts';
 
@@ -21,6 +21,7 @@ export function Viewer({ joinCode, joinToken }: { joinCode?: string; joinToken?:
   const [message, setMessage] = useState<string | undefined>();
   const [connection, setConnection] = useState<ConnectionState>('connecting');
   const [stats, setStats] = useState<string | undefined>();
+  const [quality, setQuality] = useState<ConnectionQuality | undefined>();
 
   const video = useRef<HTMLVideoElement | null>(null);
   const stage = useRef<HTMLDivElement | null>(null);
@@ -65,6 +66,7 @@ export function Viewer({ joinCode, joinToken }: { joinCode?: string; joinToken?:
           .filter((part) => part !== undefined)
           .join(' · '),
       );
+      setQuality(qualityFrom(snapshot));
     });
 
     void viewer.start();
@@ -97,7 +99,14 @@ export function Viewer({ joinCode, joinToken }: { joinCode?: string; joinToken?:
               : ''
           }`}
         >
-          <StatusDot state={connection} />
+          <div className="flex items-center gap-4">
+            <StatusDot state={connection} />
+            {/* Only once actually connected — quality means nothing while
+                still negotiating, and StatusDot already covers that wait. */}
+            {connection === 'connected' && quality !== undefined && (
+              <QualityBadge quality={quality} />
+            )}
+          </div>
           <div className="flex items-center gap-3">
             {stats !== undefined && <span className="text-xs opacity-70">{stats}</span>}
             {fullscreen.supported && (

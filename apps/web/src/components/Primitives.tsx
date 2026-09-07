@@ -1,6 +1,6 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
-import type { ConnectionState } from '@crossscreen/protocol';
+import type { ConnectionQuality, ConnectionState } from '@crossscreen/protocol';
 
 /**
  * The handful of shapes every screen uses.
@@ -52,6 +52,31 @@ export function StatusDot({ state }: { state: ConnectionState }) {
   };
 
   const { colour, label } = appearance[state];
+
+  return (
+    <span className="inline-flex items-center gap-2 text-sm">
+      <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${colour}`} aria-hidden="true" />
+      <span>{label}</span>
+    </span>
+  );
+}
+
+/**
+ * The mockup's "Good Connection" label, made real (phase-2-reliability.md
+ * §2.5) — a finer-grained read than `StatusDot`'s connected/not, derived from
+ * round-trip time, packet loss and available bandwidth once there is enough
+ * of a connection to have measured any of them (`qualityFrom` in
+ * `@crossscreen/webrtc-core`).
+ */
+export function QualityBadge({ quality }: { quality: ConnectionQuality }) {
+  const appearance: Record<ConnectionQuality, { colour: string; label: string }> = {
+    excellent: { colour: 'bg-status-good', label: 'Excellent connection' },
+    good: { colour: 'bg-status-good', label: 'Good connection' },
+    poor: { colour: 'bg-status-warn', label: 'Poor connection' },
+    unstable: { colour: 'bg-status-bad', label: 'Unstable connection' },
+  };
+
+  const { colour, label } = appearance[quality];
 
   return (
     <span className="inline-flex items-center gap-2 text-sm">
