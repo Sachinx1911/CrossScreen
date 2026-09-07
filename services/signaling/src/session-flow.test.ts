@@ -350,6 +350,52 @@ test('a second pending viewer cannot be approved once the first one is', async (
   await settle();
 });
 
+test('a host whose socket drops keeps the session, and rebinds to it', async () => {
+  // §2.3's rule, over the wire: a network blip must not cost anyone their
+  // code. The viewer here never disconnects and is never told anything —
+  // media is peer-to-peer, so from where they sit nothing happened at all.
+  const { token, code } = await newHostToken();
+
+  const host = await Client.open();
+  host.send({ type: 'session.host.attach', hostToken: token });
+  await host.next('session.state');
+
+  const viewer = await Client.open();
+  viewer.send({ type: 'session.viewer.request', joinCode: code });
+  const pending = await host.next('session.viewer.pending');
+  if (pending.payload.type !== 'session.viewer.pending') assert.fail('wrong type');
+  const viewerId = pending.payload.request.participantId;
+  host.send({ type: 'session.viewer.approve', participantId: viewerId });
+  await viewer.next('session.viewer.approved');
+
+  host.close();
+  await settle();
+
+  // Nothing was announced to the viewer: it is still watching.
+  await viewer.never('session.ended');
+
+  const returning = await Client.open();
+  returning.send({ type: 'session.host.attach', hostToken: token });
+  const state = await returning.next('session.state');
+  if (state.payload.type !== 'session.state') assert.fail('wrong type');
+
+  // The same session, with the same viewer still in it and still approved.
+  assert.equal(state.payload.session.joinCode, code);
+  const viewers = state.payload.session.participants.filter((p) => p.role === 'viewer');
+  assert.equal(viewers.length, 1, 'the viewer survived the outage');
+  assert.equal(viewers[0]?.state, 'connected', 'and did not fall back to pending');
+
+  // And negotiation resumes without a second approval round.
+  returning.send({ type: 'rtc.offer', to: viewerId, sdp: SDP });
+  const offer = await viewer.next('rtc.offer');
+  if (offer.payload.type !== 'rtc.offer') assert.fail('wrong type');
+  assert.equal(offer.payload.sdp, SDP);
+
+  returning.close();
+  viewer.close();
+  await settle();
+});
+
 test('a code with no live session answers the same as a guessed one', async () => {
   // Both must be SESSION_NOT_FOUND, so enumerating codes reveals nothing about
   // which sessions exist.
@@ -381,7 +427,38 @@ test('joining by share link works the same as by code', async () => {
   await settle();
 });
 
-test('the host leaving ends the session for the viewer', async () => {
+test('a host that means to stop ends the session for the viewer', async () => {
+  // The deliberate ending, as distinct from a dropped socket. Since §2.3 a
+  // socket closing is treated as a blip and the session is held, so saying so
+  // explicitly is the only way to end one early — which is what
+  // `SharerSession.stop()` sends before it closes anything.
+  const { host, code } = await attachedHost();
+
+  const viewer = await Client.open();
+  viewer.send({ type: 'session.viewer.request', joinCode: code });
+  const pending = await host.next('session.viewer.pending');
+  if (pending.payload.type !== 'session.viewer.pending') assert.fail('wrong type');
+  host.send({
+    type: 'session.viewer.approve',
+    participantId: pending.payload.request.participantId,
+  });
+  await viewer.next('session.viewer.approved');
+
+  host.send({ type: 'session.end' });
+
+  const ended = await viewer.next('session.ended');
+  if (ended.payload.type !== 'session.ended') assert.fail('wrong type');
+  assert.equal(ended.payload.reason, 'host_ended');
+
+  host.close();
+  viewer.close();
+  await settle();
+});
+
+test('a host socket dropping is held, not announced as an ending', async () => {
+  // The counterpart to the test above, and the reason it had to change: this
+  // used to be the same event. Someone walking between Wi-Fi and mobile data
+  // must not be reported to their viewer as having ended the session.
   const { host, code } = await attachedHost();
 
   const viewer = await Client.open();
@@ -395,10 +472,9 @@ test('the host leaving ends the session for the viewer', async () => {
   await viewer.next('session.viewer.approved');
 
   host.close();
+  await settle();
 
-  const ended = await viewer.next('session.ended');
-  if (ended.payload.type !== 'session.ended') assert.fail('wrong type');
-  assert.equal(ended.payload.reason, 'host_ended');
+  await viewer.never('session.ended');
 
   viewer.close();
   await settle();

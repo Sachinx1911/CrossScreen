@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import type { HostTokenClaims } from '@crossscreen/protocol';
+import { SESSION_TIMEOUTS, type HostTokenClaims } from '@crossscreen/protocol';
 
 import { LiveSession } from './live-session.ts';
 
@@ -247,6 +247,72 @@ test('an approved viewer is left alone by the join-request timeout', () => {
   const expired = session.expireStaleRequests(0, Date.now() + 1_000);
   assert.deepEqual(expired, [], 'approval already answered the request');
   assert.equal(viewer.state, 'approved');
+});
+
+test('a host being away briefly does not expire the session', () => {
+  // The whole point of the grace period: a blip is not an ending, and the
+  // people watching are still watching — media never went through that socket.
+  const now = Date.now();
+  const session = new LiveSession(claims(now), fakeSocket(), now);
+  session.addViewer({
+    deviceLabel: 'Android · Chrome',
+    approximateLocation: undefined,
+    joinedVia: 'code',
+    socket: fakeSocket(),
+    now,
+  });
+  session.hostAwaySince = now;
+
+  const timeouts = { ...SESSION_TIMEOUTS, hostGraceMs: 90_000 };
+  assert.equal(session.isExpired(now + 30_000, timeouts), false, 'still inside the grace period');
+  assert.equal(session.isExpired(now + 91_000, timeouts), true, 'gone for good');
+});
+
+test('a host that comes back keeps the viewers it already approved', () => {
+  const now = Date.now();
+  const session = new LiveSession(claims(now), fakeSocket(), now);
+  const viewer = session.addViewer({
+    deviceLabel: 'Mac · Safari',
+    approximateLocation: undefined,
+    joinedVia: 'link',
+    socket: fakeSocket(),
+    now,
+  });
+  session.approve(viewer.id, now);
+  session.hostAwaySince = now;
+
+  const newSocket = fakeSocket();
+  session.rebindHost(newSocket);
+
+  assert.equal(session.hostAwaySince, undefined, 'no longer away');
+  assert.equal(session.hostSocket, newSocket, 'talking over the new socket');
+  assert.equal(session.approvedViewers.length, 1, 'the approval survived');
+  assert.equal(
+    session.mayRelay(session.hostId, viewer.id),
+    true,
+    'and negotiation can resume without asking again',
+  );
+  assert.equal(
+    session.isExpired(now + 10 * 60_000, { ...SESSION_TIMEOUTS, hostGraceMs: 90_000 }),
+    false,
+  );
+});
+
+test('with no host grace configured, a session is judged only on its other clocks', () => {
+  // The protocol constants carry no opinion about host absence, so a caller
+  // passing them unchanged must not have sessions expiring out from under it.
+  const now = Date.now();
+  const session = new LiveSession(claims(now), fakeSocket(), now);
+  session.addViewer({
+    deviceLabel: 'Windows · Edge',
+    approximateLocation: undefined,
+    joinedVia: 'code',
+    socket: fakeSocket(),
+    now,
+  });
+  session.hostAwaySince = now;
+
+  assert.equal(session.isExpired(now + 60 * 60_000, SESSION_TIMEOUTS), false);
 });
 
 test('a session expires at its hard ceiling however busy it is', () => {

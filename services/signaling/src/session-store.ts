@@ -2,6 +2,16 @@ import { SESSION_TIMEOUTS } from '@crossscreen/protocol';
 
 import type { LiveSession, Viewer } from './live-session.ts';
 
+/**
+ * What the sweeper measures against. `hostGraceMs` is optional so the
+ * protocol constants can stand in unchanged — a caller that does not set it
+ * is saying it has no opinion on how long a host may be away, not that the
+ * answer is zero.
+ */
+export type SweepTimeouts = Pick<typeof SESSION_TIMEOUTS, 'idleMs' | 'unclaimedMs'> & {
+  hostGraceMs?: number;
+};
+
 /** One pending request that timed out, and the session it belonged to. */
 export interface StaleJoinRequest {
   session: LiveSession;
@@ -23,10 +33,7 @@ export interface SessionStore {
   byToken(joinToken: string): LiveSession | undefined;
   remove(sessionId: string): void;
   /** Drop expired sessions, returning those removed so callers can notify. */
-  sweep(
-    now?: number,
-    timeouts?: Pick<typeof SESSION_TIMEOUTS, 'idleMs' | 'unclaimedMs'>,
-  ): LiveSession[];
+  sweep(now?: number, timeouts?: SweepTimeouts): LiveSession[];
   /** Reject pending viewers who have waited past the join-request timeout. */
   expireStaleJoinRequests(timeoutMs: number, now?: number): StaleJoinRequest[];
   readonly size: number;
@@ -73,10 +80,7 @@ export class InMemorySessionStore implements SessionStore {
     this.#byToken.delete(session.joinToken);
   }
 
-  sweep(
-    now = Date.now(),
-    timeouts: Pick<typeof SESSION_TIMEOUTS, 'idleMs' | 'unclaimedMs'> = SESSION_TIMEOUTS,
-  ): LiveSession[] {
+  sweep(now = Date.now(), timeouts: SweepTimeouts = SESSION_TIMEOUTS): LiveSession[] {
     const expired: LiveSession[] = [];
     for (const session of this.#byId.values()) {
       if (session.isExpired(now, timeouts)) expired.push(session);
@@ -107,11 +111,18 @@ export function startSweeper(
   store: SessionStore,
   onExpired: (session: LiveSession) => void,
   intervalMs = 30_000,
-  timeouts: Pick<typeof SESSION_TIMEOUTS, 'idleMs' | 'unclaimedMs'> = SESSION_TIMEOUTS,
+  timeouts: SweepTimeouts = SESSION_TIMEOUTS,
 ): () => void {
   const timer = setInterval(() => {
     for (const session of store.sweep(Date.now(), timeouts)) {
-      session.endedReason = session.emptySince === undefined ? 'expired' : 'idle_timeout';
+      // A host who never came back is reported as expiry rather than as
+      // having ended the session: "the host ended it" would be a small lie
+      // told to someone whose picture just stopped, and the difference
+      // matters to whoever is reading the logs afterwards.
+      session.endedReason =
+        session.hostAwaySince !== undefined || session.emptySince === undefined
+          ? 'expired'
+          : 'idle_timeout';
       onExpired(session);
     }
   }, intervalMs);

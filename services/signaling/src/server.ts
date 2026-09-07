@@ -116,7 +116,11 @@ startSweeper(
     log.info('session.expired', { sessionId: session.sessionId, reason: session.endedReason });
   },
   config.sessionSweepIntervalMs,
-  { idleMs: config.sessionIdleTimeoutMs, unclaimedMs: config.sessionUnclaimedTimeoutMs },
+  {
+    idleMs: config.sessionIdleTimeoutMs,
+    unclaimedMs: config.sessionUnclaimedTimeoutMs,
+    hostGraceMs: config.hostGraceMs,
+  },
 );
 
 // A per-viewer clock, not a per-session one, so it runs on its own schedule

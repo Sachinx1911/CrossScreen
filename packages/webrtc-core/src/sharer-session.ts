@@ -137,6 +137,7 @@ export class SharerSession extends Emitter<SharerEvents> {
       throw new Error('cancelled');
     }
     signaling.send({ type: 'session.host.attach', hostToken: session.hostToken });
+    globalThis.addEventListener?.('pagehide', this.#onPageHide);
 
     // The OS or the browser can end a capture without asking. Treat the track
     // ending as authoritative rather than assuming we are still sharing.
@@ -232,12 +233,29 @@ export class SharerSession extends Emitter<SharerEvents> {
     this.#signaling?.send({ type: 'session.viewer.reject', participantId });
   }
 
+  /**
+   * A page going away for good is a host who meant to stop — as distinct from
+   * a socket that dropped, which the server now holds open for a grace period
+   * (§2.3). Without saying so here, closing a tab would look exactly like
+   * walking into a lift, and everyone watching would sit on a frozen picture
+   * until that grace period ran out.
+   *
+   * `pagehide` rather than `beforeunload`: mobile browsers frequently skip the
+   * latter. `persisted` means the page went into the back/forward cache and
+   * may yet come back, which is a pause, not an ending.
+   */
+  readonly #onPageHide = (event: Event): void => {
+    if ((event as PageTransitionEvent).persisted) return;
+    this.#signaling?.send({ type: 'session.end' });
+  };
+
   stop(): void {
     if (this.#stopped) return;
     this.#stopped = true;
 
     if (this.#statsTimer !== undefined) clearInterval(this.#statsTimer);
     this.#statsTimer = undefined;
+    globalThis.removeEventListener?.('pagehide', this.#onPageHide);
 
     for (const { pc } of this.#peers.values()) pc.close();
     this.#peers.clear();
@@ -312,6 +330,16 @@ export class SharerSession extends Emitter<SharerEvents> {
     // picture is still moving.
     signaling.onState((state) => {
       if (state === 'reconnecting') this.emit('connection', { state: 'reconnecting' });
+    });
+
+    // Back on a new socket, which the server has never seen. Re-presenting the
+    // host token rebinds it to the same session — the viewers already approved
+    // into it stay approved, which is the whole point of the server holding it
+    // rather than ending it the moment the socket went.
+    signaling.onReconnect(() => {
+      const hostToken = this.#session?.hostToken;
+      if (hostToken === undefined) return;
+      signaling.send({ type: 'session.host.attach', hostToken });
     });
 
     signaling.onClose(() => {

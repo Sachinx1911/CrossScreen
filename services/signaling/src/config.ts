@@ -119,6 +119,16 @@ export const config = {
    * test would be pointless if the check only ran every 30 seconds regardless.
    */
   sessionSweepIntervalMs: intFromEnv('SESSION_SWEEP_INTERVAL_MS', 30_000, 100, 5 * 60 * 1_000),
+  /**
+   * How long a session is held after the host's socket drops, so the same
+   * host can rebind to it rather than everyone starting again (§2.3).
+   *
+   * Longer than the client's own give-up point (`DEFAULT_BACKOFF.maxElapsedMs`,
+   * one minute) so that a client which recovers at the last moment still finds
+   * its session waiting. Past that, holding it only keeps a join code alive
+   * for a host that has stopped trying.
+   */
+  hostGraceMs: intFromEnv('HOST_GRACE_MS', 90_000, 1_000, 60 * 60 * 1_000),
   // LOG_LEVEL is deliberately absent. It is read in log.ts instead, because
   // this module logs its own rejections and cannot import a logger that
   // imports it back. A `logLevel` here would be read by nothing and changing

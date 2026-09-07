@@ -77,8 +77,17 @@ async function hostAttach(
     return;
   }
 
-  const session = new LiveSession(result.claims, connection.socket);
-  store.add(session);
+  // A host coming back from a dropped socket rebinds to the session it left,
+  // keeping the viewers already approved into it. Building a fresh one here
+  // would silently strand them: same join code, but an empty participant list,
+  // so nothing could be relayed to anyone and each would have to ask
+  // permission again — which §2.3 counts as a failure, not a recovery.
+  const existing = store.byId(result.claims.sid);
+  const resumed = existing !== undefined && existing.endedReason === undefined;
+
+  const session = existing ?? new LiveSession(result.claims, connection.socket);
+  if (resumed) session.rebindHost(connection.socket);
+  else store.add(session);
 
   connection.sessionId = session.sessionId;
   connection.participantId = session.hostId;
@@ -88,6 +97,7 @@ async function hostAttach(
     sessionId: session.sessionId,
     event: 'host_attached',
     participantId: session.hostId,
+    ...(resumed ? { detail: { resumed: true } } : {}),
   });
 
   send(
@@ -95,7 +105,11 @@ async function hostAttach(
     { type: 'session.state', session: session.summary(), you: session.hostId },
     id,
   );
-  log.info('host.attached', { sessionId: session.sessionId, joinCode: session.joinCode });
+  log.info(resumed ? 'host.resumed' : 'host.attached', {
+    sessionId: session.sessionId,
+    joinCode: session.joinCode,
+    ...(resumed ? { viewers: session.viewers.length } : {}),
+  });
 }
 
 /**
@@ -411,13 +425,17 @@ export function handleDisconnect(connection: Connection, store: SessionStore): v
   if (session === undefined) return;
 
   if (connection.role === 'host') {
-    // Without a host there is nothing to watch, so the session goes with it.
-    session.endedReason = 'host_ended';
-    for (const viewer of session.viewers) {
-      send(viewer.socket, { type: 'session.ended', reason: 'host_ended' });
-    }
-    store.remove(session.sessionId);
-    log.info('session.ended', { sessionId: session.sessionId, reason: 'host_left' });
+    // Held, not ended. A dropped socket is far more often a network blip than
+    // someone finishing — and media is peer-to-peer, so anyone watching is
+    // still watching right now. The sweeper ends it if the host does not come
+    // back within the grace period; `session.end` is how a host who actually
+    // meant it says so.
+    //
+    // Viewers are told nothing, deliberately: nothing they can see has
+    // changed, and a warning that resolves itself in two seconds is worse
+    // than silence.
+    session.hostAwaySince = Date.now();
+    log.info('host.away', { sessionId: session.sessionId });
     return;
   }
 

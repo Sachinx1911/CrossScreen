@@ -60,6 +60,17 @@ export class LiveSession {
    */
   #everClaimed = false;
 
+  /**
+   * When the host's socket dropped, if it is currently gone.
+   *
+   * A host losing signaling is not a host ending the session: media is
+   * peer-to-peer, so anyone watching still is, and the phase rule is that a
+   * temporary network problem must never cost someone their code
+   * (phase-2-reliability.md §2.3). The session is held for a grace period so
+   * the same host can come back to it with the token it already has.
+   */
+  hostAwaySince: number | undefined;
+
   readonly #viewers = new Map<string, Viewer>();
 
   constructor(claims: HostTokenClaims, hostSocket: WebSocket, now = Date.now()) {
@@ -196,11 +207,38 @@ export class LiveSession {
     return this.#viewers.get(participantId)?.socket;
   }
 
+  /**
+   * The host is back, on a new socket.
+   *
+   * Rebinding rather than rebuilding is the whole point: a fresh `LiveSession`
+   * would have no viewers in it, so everyone watching would be unreachable for
+   * negotiation and would have to ask permission again — which this phase
+   * calls a failure, not a recovery.
+   */
+  rebindHost(socket: WebSocket): void {
+    this.hostSocket = socket;
+    this.hostAwaySince = undefined;
+  }
+
   isExpired(
     now = Date.now(),
-    timeouts: Pick<typeof SESSION_TIMEOUTS, 'idleMs' | 'unclaimedMs'> = SESSION_TIMEOUTS,
+    timeouts: Pick<typeof SESSION_TIMEOUTS, 'idleMs' | 'unclaimedMs'> & {
+      hostGraceMs?: number;
+    } = SESSION_TIMEOUTS,
   ): boolean {
     if (now >= this.expiresAt) return true;
+
+    // A host that has been gone longer than the grace period is not coming
+    // back on this session: its own client stops retrying before this, so a
+    // longer wait only holds a join code open for nobody.
+    if (
+      this.hostAwaySince !== undefined &&
+      timeouts.hostGraceMs !== undefined &&
+      now - this.hostAwaySince >= timeouts.hostGraceMs
+    ) {
+      return true;
+    }
+
     if (this.emptySince === undefined) return false;
 
     // A session nobody has found yet gets longer to be found than one that

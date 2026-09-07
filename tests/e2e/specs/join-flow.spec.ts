@@ -405,7 +405,12 @@ test('a viewer who leaves while waiting takes their prompt with them', async ({ 
   await host.close();
 });
 
-test('the host leaving ends the session for the viewer', async ({ browser }) => {
+test('the host closing their tab ends the session for the viewer', async ({ browser }) => {
+  // Closing the *page* rather than the whole context on purpose: this is what
+  // a real "close tab" fires `pagehide` for, which is how a host who is
+  // plainly finished is told apart from one whose socket merely dropped
+  // (§2.3) — a dropped socket is now held for a grace period rather than
+  // ending the session outright.
   const host = await browser.newContext();
   const guest = await browser.newContext();
   const sharer = await host.newPage();
@@ -417,10 +422,11 @@ test('the host leaving ends the session for the viewer', async ({ browser }) => 
   await sharer.getByRole('button', { name: 'Allow' }).click();
   await expect(viewer.locator('video')).toBeVisible();
 
-  await host.close();
+  await sharer.close();
 
   await expect(viewer.getByText('The host ended the session.')).toBeVisible();
 
+  await host.close();
   await guest.close();
 });
 
