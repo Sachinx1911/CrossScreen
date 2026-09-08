@@ -82,9 +82,39 @@ Gradle"; it was one sandboxed shell's socket policy. Kept here for anyone
 hitting the same wall from an equivalent restricted shell, now with the
 counter-evidence that it is not universal.
 
+## Protocol types
+
+`app/src/main/kotlin/app/crossscreen/android/protocol/Protocol.kt` is
+generated, not hand-written — architecture §65's promise that the Kotlin
+client cannot drift from the wire protocol. Regenerate it after any change
+to `packages/protocol/src`:
+
+```bash
+pnpm --filter @crossscreen/protocol generate:kotlin
+```
+
+`kotlinx.serialization` decodes it: `ClientMessage` and `ServerMessage` are
+sealed interfaces with one nested class per wire `type`, discriminated on
+that field by kotlinx.serialization's own default (`classDiscriminator =
+"type"`, so no annotation or custom `Json` config is needed for that part).
+Nested rather than top-level, on purpose — `rtc.offer` names a client
+variant with `to` and a server variant with `from`, so
+`ClientMessage.RtcOffer` and `ServerMessage.RtcOffer` need to be distinct
+types, and nesting is what makes the identical simple name legal.
+
+`ProtocolTest.kt` round-trips real envelope JSON through the generated
+types — the discriminator, a required-but-nullable ICE field, an optional
+field genuinely absent from the wire, and an unknown field from a
+hypothetically newer server all decode correctly. Compiling proves none of
+that; a passing test does.
+
+**Not yet done:** CI does not fail if `Protocol.kt` drifts from the schema
+(exit criterion 6's second half) — regeneration is a manual step, the same
+as `generate:schema` already is for the JSON Schema files themselves.
+
 ## Next
 
-Foundation confirmed to compile and run. Next slice of Phase 4 work:
-Kotlin protocol types generated from `packages/protocol/schema/`, then
-`MediaProjection` capture, then `org.webrtc` wiring, then the foreground
-service with correct Android 14+ start ordering.
+Toolchain proven, command-line builds work, protocol types generated and
+tested. Next slice of Phase 4 work: `MediaProjection` capture, then
+`org.webrtc` wiring, then the foreground service with correct Android 14+
+start ordering.

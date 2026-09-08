@@ -20,6 +20,7 @@
     "build": "tsc -b",
     "typecheck": "tsc -b --noEmit false --emitDeclarationOnly",
     "schema": "node src/generate-schema.ts",
+    "generate:kotlin": "node src/generate-kotlin.ts",
     "test": "node --test src/*.test.ts"
   },
   "dependencies": {

@@ -3,12 +3,16 @@
 **Estimate:** 6–8 weeks part-time · **Depends on:** Phase 3a
 **Planning depth:** medium. Full breakdown written at the start of Phase 3b.
 
-**Status (2026-09-08):** toolchain proven, no product code yet. The
+**Status (2026-09-08):** toolchain proven, first deliverable done. The
 `apps/android` walking skeleton (Gradle/Kotlin/Compose, two placeholder
-screens) builds and runs on an Android 15 emulator — see
-[`apps/android/README.md`](../../apps/android/README.md) for what that
-actually verifies and the AGP/Gradle version pin it took to get there.
-None of the deliverables below are started.
+screens) builds and runs on an Android 15 emulator, command-line and CI can
+build it too (`./gradlew build` — see
+[`apps/android/README.md`](../../apps/android/README.md) for the
+AGP/Gradle version pin and the sandboxed-shell dead end it took to get
+there), and **Kotlin protocol types are now generated from
+`packages/protocol`**, wired through `kotlinx.serialization`, and verified
+with round-trip tests against real envelope JSON. Nothing below that is
+started.
 
 ## Goal
 
@@ -41,9 +45,9 @@ version-dependent, and unforgiving:
 - Kotlin app: Share and Join, following the mobile layouts in the mockup.
 - `MediaProjection` capture wired into `org.webrtc`, feeding the same signaling
   protocol as every other client.
-- **Kotlin protocol types generated from `packages/protocol/schema`**, not
-  hand-written. This is the moment the JSON Schema work in Phase 0 pays for
-  itself, and hand-copying here would guarantee drift.
+- ~~Kotlin protocol types generated from `packages/protocol/schema`, not
+  hand-written.~~ **Done, 2026-09-08.** `pnpm --filter @crossscreen/protocol
+generate:kotlin` — see [`apps/android/README.md`](../../apps/android/README.md#protocol-types).
 - Foreground service with correct ordering and a persistent notification.
 - Honest handling of every OS-enforced interruption above.
 - Play Store listing, signing and release track.
@@ -60,6 +64,7 @@ version-dependent, and unforgiving:
 5. The app passes Play Store review, including the disclosures that screen
    capture requires.
 6. Kotlin types are generated, and CI fails if they drift from the schema.
+   Half done: generated and tested; CI enforcement is not built yet.
 
 ## Open questions for the full plan
 
