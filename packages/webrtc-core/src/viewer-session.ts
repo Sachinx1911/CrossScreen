@@ -36,6 +36,8 @@ export interface ViewerEvents {
   error: { message: string };
   /** This viewer's own id, once known — see the `participantId` getter's own comment for what it is for. */
   participant: { participantId: string };
+  /** The server confirmed a `report()` call reached `abuse_log` (phase-3a-production.md §3.2). */
+  reported: undefined;
 }
 
 export interface ViewerDependencies {
@@ -189,7 +191,23 @@ export class ViewerSession extends Emitter<ViewerEvents> {
     this.#signaling = undefined;
   }
 
+  /**
+   * "Something is wrong with this session" (phase-3a-production.md §3.2).
+   * Works regardless of who is actually at fault — that judgment is for
+   * whoever reads `abuse_log` afterward, not for this call to make.
+   */
+  report(reason?: string): void {
+    this.#signaling?.send({
+      type: 'session.report',
+      ...(reason === undefined ? {} : { reason }),
+    });
+  }
+
   #wire(signaling: SignalingClient): void {
+    signaling.on('session.report.received', () => {
+      this.emit('reported', undefined);
+    });
+
     signaling.on('session.state', (message) => {
       // A resumed viewer's own record already reads 'connected' — the server
       // rebound it without ever un-approving it — so this is not a fresh

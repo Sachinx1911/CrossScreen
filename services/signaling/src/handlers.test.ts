@@ -266,3 +266,59 @@ test('a locked session still lets an already-approved viewer resume', async () =
     'a resume succeeds — no error, no SESSION_LOCKED',
   );
 });
+
+/**
+ * `session.report` (phase-3a-production.md §3.2) never answers with anything
+ * but a bare confirmation, so — like `stats.report` — the one thing worth
+ * asserting on is what actually reached the recorder, not the wire reply.
+ */
+
+test('a report reaches abuse_log with the session and role attached, and is confirmed', async () => {
+  const { connection, abuse, sent } = fakeConnection({
+    sessionId: 'session-1',
+    role: 'viewer',
+    ipHash: 'ip-1',
+  });
+
+  await handleMessage(
+    connection,
+    { type: 'session.report', reason: 'the host is asking for my bank details' } as ClientMessage,
+    'id-1',
+    new InMemorySessionStore(),
+  );
+
+  assert.equal(abuse.length, 1);
+  assert.deepEqual(abuse[0], {
+    event: 'reported',
+    ipHash: 'ip-1',
+    detail: {
+      sessionId: 'session-1',
+      role: 'viewer',
+      reason: 'the host is asking for my bank details',
+    },
+  });
+  assert.equal(payloadOf(sent).type, 'session.report.received');
+});
+
+test('a report with no reason and no session yet is still recorded, not dropped', async () => {
+  const { connection, abuse, sent } = fakeConnection({
+    sessionId: undefined,
+    role: undefined,
+    ipHash: undefined,
+  });
+
+  await handleMessage(
+    connection,
+    { type: 'session.report' } as ClientMessage,
+    'id-1',
+    new InMemorySessionStore(),
+  );
+
+  assert.equal(abuse.length, 1);
+  assert.deepEqual(abuse[0], { event: 'reported', detail: {} });
+  assert.equal(
+    payloadOf(sent).type,
+    'session.report.received',
+    'confirmed even with nothing else known',
+  );
+});

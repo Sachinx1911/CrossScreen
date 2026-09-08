@@ -9,7 +9,7 @@ import {
 } from '@crossscreen/protocol';
 import { ApiClient, qualityFrom, ViewerSession, type ViewerPhase } from '@crossscreen/webrtc-core';
 
-import { Button, Card, QualityBadge, StatusDot } from './components.tsx';
+import { Button, Card, QualityBadge, ReportButton, StatusDot } from './components.tsx';
 import { apiBaseUrl, forceRelay, signalingUrl } from './config.ts';
 import { tagParticipant } from './sentry.ts';
 
@@ -32,6 +32,7 @@ export function Joiner({ onBack }: { onBack: () => void }) {
   const [connection, setConnection] = useState<ConnectionState>('connecting');
   const [quality, setQuality] = useState<ConnectionQuality | undefined>();
   const [stream, setStream] = useState<MediaStream | undefined>();
+  const [reported, setReported] = useState(false);
 
   const video = useRef<HTMLVideoElement | null>(null);
   const session = useRef<ViewerSession | undefined>(undefined);
@@ -81,6 +82,9 @@ export function Joiner({ onBack }: { onBack: () => void }) {
     viewer.on('stats', (snapshot) => {
       setQuality(qualityFrom(snapshot));
     });
+    viewer.on('reported', () => {
+      setReported(true);
+    });
 
     void viewer.start();
   }
@@ -90,6 +94,7 @@ export function Joiner({ onBack }: { onBack: () => void }) {
     session.current = undefined;
     setStream(undefined);
     setQuality(undefined);
+    setReported(false);
     setMessage(undefined);
     setCode('');
     setStage('entering-code');
@@ -107,6 +112,7 @@ export function Joiner({ onBack }: { onBack: () => void }) {
               <QualityBadge quality={quality} />
             )}
           </div>
+          <ReportButton onReport={() => session.current?.report()} reported={reported} />
           <Button variant="secondary" onClick={leave}>
             Leave
           </Button>

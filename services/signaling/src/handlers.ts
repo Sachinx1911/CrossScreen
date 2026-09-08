@@ -549,6 +549,27 @@ export async function handleMessage(
         }
       }
       return;
+    case 'session.report':
+      // Works from either side, deliberately without asking who is at fault
+      // (phase-3a-production.md §3.2) — a viewer reporting a host and a host
+      // reporting a viewer are the same signal to whoever reads `abuse_log`
+      // afterward. An unmonitored button is worse than none, so the reply is
+      // unconditional: the reporter must never wonder whether it did anything.
+      connection.recorder.abuseEvent({
+        event: 'reported',
+        ...(connection.ipHash === undefined ? {} : { ipHash: connection.ipHash }),
+        detail: {
+          ...(connection.sessionId === undefined ? {} : { sessionId: connection.sessionId }),
+          ...(connection.role === undefined ? {} : { role: connection.role }),
+          ...(payload.reason === undefined ? {} : { reason: payload.reason }),
+        },
+      });
+      log.warn('session.reported', {
+        sessionId: connection.sessionId,
+        role: connection.role,
+      });
+      send(connection.socket, { type: 'session.report.received' }, id);
+      return;
   }
 }
 

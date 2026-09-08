@@ -253,3 +253,24 @@ export function ApprovalPrompt({
     </div>
   );
 }
+
+/**
+ * "Something is wrong with this session" (phase-3a-production.md §3.2) — the
+ * mirror of `apps/web`'s own `ReportButton`. See that file's comment for
+ * what this is and is not: `reported` is the server's own confirmation, not
+ * an optimistic local flag.
+ */
+export function ReportButton({ onReport, reported }: { onReport: () => void; reported: boolean }) {
+  if (reported) {
+    return <span className="text-xs text-[var(--text-muted)]">Report received — thank you.</span>;
+  }
+  return (
+    <button
+      type="button"
+      onClick={onReport}
+      className="text-xs text-[var(--text-muted)] underline decoration-dotted hover:text-[var(--text-strong)]"
+    >
+      Report a problem
+    </button>
+  );
+}

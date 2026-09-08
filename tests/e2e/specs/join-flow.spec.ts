@@ -530,3 +530,44 @@ test('forcing relay with no TURN configured refuses to start, in plain language'
   ).toBeVisible();
   await expect(page.getByText('You are sharing your screen')).toHaveCount(0);
 });
+
+test('the safety notice blocks a first share until it is acknowledged', async ({ page }) => {
+  // Deliberately not calling skipSafetyNotice — this is the one test that
+  // needs the notice to actually be there (phase-3a-production.md §3.2).
+  failOnConsoleErrors(page, consoleErrors);
+  await stubScreenCapture(page);
+  await page.goto('/share');
+
+  await expect(page.getByText('Only share with people you know.')).toBeVisible();
+  // Nothing about actually sharing is reachable while the notice is up —
+  // this is what makes it a gate rather than a banner.
+  await expect(page.getByRole('button', { name: 'Choose a screen' })).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'I understand' }).click();
+  await expect(page.getByRole('button', { name: 'Choose a screen' })).toBeVisible();
+  await expect(page.getByText('Only share with people you know.')).toHaveCount(0);
+});
+
+test('a report reaches the server and the reporter is told so', async ({ browser }) => {
+  const host = await browser.newContext();
+  const guest = await browser.newContext();
+  const sharer = await host.newPage();
+  const viewer = await guest.newPage();
+  failOnConsoleErrors(viewer, consoleErrors);
+
+  const { link } = await startSharing(sharer);
+  await viewer.goto(new URL(link).pathname);
+  await sharer.getByRole('button', { name: 'Allow' }).click();
+  await expect(viewer.locator('video')).toBeVisible();
+
+  // From the sharer's side...
+  await sharer.getByRole('button', { name: 'Report a problem' }).click();
+  await expect(sharer.getByText('Report received — thank you.')).toBeVisible();
+
+  // ...and independently from the viewer's, in the same session.
+  await viewer.getByRole('button', { name: 'Report a problem' }).click();
+  await expect(viewer.getByText('Report received — thank you.')).toBeVisible();
+
+  await host.close();
+  await guest.close();
+});

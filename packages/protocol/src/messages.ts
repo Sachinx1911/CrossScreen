@@ -140,6 +140,19 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
     codec: z.string().max(24).optional(),
   }),
 
+  /**
+   * "Something is wrong with this session" — the Report affordance
+   * (phase-3a-production.md §3.2). Works from either side and at any point
+   * after joining, deliberately without asking who is at fault: a viewer
+   * reporting a host and a host reporting a viewer are the same signal to
+   * the person who reads `abuse_log` afterward.
+   */
+  z.object({
+    type: z.literal('session.report'),
+    /** Free text from whoever is reporting. Never required — a report with no reason is still a report. */
+    reason: z.string().max(500).optional(),
+  }),
+
   z.object({ type: z.literal('ping') }),
 ]);
 export type ClientMessage = z.infer<typeof clientMessageSchema>;
@@ -212,6 +225,9 @@ export const serverMessageSchema = z.discriminatedUnion('type', [
     /** Correlates with the `id` of the message that caused it, when there was one. */
     inReplyTo: z.string().optional(),
   }),
+
+  /** Confirms a report was recorded — the reporter must never wonder whether the button did anything. */
+  z.object({ type: z.literal('session.report.received') }),
 
   z.object({ type: z.literal('pong') }),
 ]);

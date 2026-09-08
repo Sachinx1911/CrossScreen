@@ -100,11 +100,64 @@ and this is the phase that stops CrossScreen being a convenient tool for one.
 - A documented process for responding to a report — an unmonitored button is
   worse than none.
 
+> **3.2 done, 2026-09-08.** A new `session.report` message (either side, any
+> point after joining) writes to `abuse_log` — deliberately without asking
+> who is at fault, since a viewer reporting a host and a host reporting a
+> viewer are the same signal to whoever reads that table afterward. Both
+> apps' viewer and sharer screens get a small "Report a problem" affordance
+> (`ReportButton`) that turns into "Report received — thank you" once the
+> server confirms, never an optimistic local flag. `session_locked` and
+> `too_many_sessions` — §3.1's automated refusals — already wrote to the same
+> table; a human report is the case those cannot catch, someone who got in
+> legitimately and then did something wrong.
+>
+> The first-share notice (`SafetyNotice.tsx`, both apps) already existed and
+> already gated the entire share screen behind it — genuinely unskippable,
+> not merely unclosed — but nothing had verified that by test until now; an
+> E2E test now confirms the gate blocks `Choose a screen` until acknowledged.
+>
+> **The documented process is [`docs/abuse-response.md`](../abuse-response.md).**
+> It says plainly what this phase's own constraints make true: solo,
+> part-time, no alerting or paging exists yet, and a live tech-support-scam
+> report right now needs a person reading `abuse_log` by hand, not an admin
+> panel that does not exist. Written as the honest process for what actually
+> happens today, not the one a bigger team would run.
+>
+> Testing: 2 new handler-level tests (the abuse-log row shape, and that a
+> report with nothing else known is still recorded and confirmed rather than
+> dropped); 1 new E2E test proving the report round-trip from both sides of
+> one live session; 1 new E2E test proving the safety notice actually blocks
+> sharing when not pre-skipped, which nothing had exercised before. Full
+> monorepo build, lint, typecheck and unit suite; pnpm format; a markdown
+> link check; and the full Playwright suite.
+>
+> **Not verified:** that a real person, using the process in
+> `abuse-response.md`, can actually find and act on a report in production —
+> the process is written and the query in it works, but nobody has run it
+> against a live report yet.
+
 ### 3.3 — Session expiry
 
 A sweeper enforcing `SESSION_TIMEOUTS` — unclaimed at 10 minutes, idle at 5,
 absolute ceiling at 12 hours — plus retention on `session_events` and
 `connection_stats` so the database does not grow without bound.
+
+> **3.3 done, 2026-09-08.** The sweeper itself has existed since Phase 1/2 —
+> `SessionStore`'s sweep, `LiveSession.isExpired`, all three `SESSION_TIMEOUTS`
+> already enforced and tested. What was missing was the second half of this
+> section's own sentence: retention. `packages/db/src/retention.ts` (the
+> `migrate.ts` of deletion — plain SQL, run once and exit, no job-scheduler
+> dependency for three tables) deletes anything older than
+> `DATA_RETENTION_DAYS` (default 30) from `session_events`,
+> `connection_stats` and `abuse_log`. `pnpm --filter @crossscreen/db
+retention`, meant to be scheduled daily via cron or a systemd timer once
+> there is somewhere to schedule it (§3.4).
+>
+> **Not verified against a live database this session**, the same disclosed
+> gap as §2.1 and §2.4 before it — Docker was not available on this machine.
+> The three `DELETE ... WHERE occurred_at < now() - make_interval(days =>
+...)` statements are unremarkable SQL, but "unremarkable" is not the same
+> claim as "run and watched delete the right rows."
 
 ### 3.4 — Deployment · `infrastructure/`
 

@@ -231,6 +231,21 @@ Verified against PostgreSQL 17 on 2026-09-06: migrations apply, all four
 tables are created, and a full share-and-join run lands session events and
 connection statistics that the query above can actually read.
 
+### Retention
+
+`session_events` and `connection_stats` fill up at one row per connection
+per couple of seconds, so nothing in this project ever asked the database to
+keep all of it forever (phase-3a-production.md §3.3). Run this on a schedule
+— a daily cron job or systemd timer in production, whenever in development:
+
+```bash
+DATABASE_URL=postgres://crossscreen:crossscreen@localhost:5432/crossscreen pnpm --filter @crossscreen/db retention
+```
+
+Deletes anything older than `DATA_RETENTION_DAYS` (default 30) from
+`session_events`, `connection_stats` and `abuse_log`. The script does one
+pass and exits — it is not a daemon, and does not schedule itself.
+
 ### The rest of what 2.4 asks for
 
 `connection_stats` and `session_events` between them are meant to answer every

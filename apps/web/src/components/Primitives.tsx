@@ -116,3 +116,28 @@ export function Notice({
 export function Muted({ children }: { children: ReactNode }) {
   return <span className="text-[var(--text-muted)]">{children}</span>;
 }
+
+/**
+ * "Something is wrong with this session" (phase-3a-production.md §3.2) — a
+ * public screen-sharing service is a standard vector for tech-support scams,
+ * and this exists so a person mid-session has somewhere to say so without
+ * having to already know where `abuse_log` lives. `reported` is owned by the
+ * caller, not this component: it comes from the session object's own
+ * `reported` event, the server's actual confirmation the report landed,
+ * rather than an optimistic local flag that could show "reported" for
+ * something the network never delivered.
+ */
+export function ReportButton({ onReport, reported }: { onReport: () => void; reported: boolean }) {
+  if (reported) {
+    return <span className="text-xs text-[var(--text-muted)]">Report received — thank you.</span>;
+  }
+  return (
+    <button
+      type="button"
+      onClick={onReport}
+      className="text-xs text-[var(--text-muted)] underline decoration-dotted hover:text-[var(--text-strong)]"
+    >
+      Report a problem
+    </button>
+  );
+}

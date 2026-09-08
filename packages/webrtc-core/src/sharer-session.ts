@@ -40,6 +40,8 @@ export interface SharerEvents {
   /** The share ended — by us, by the OS, or by the far end. */
   ended: { reason: string };
   error: { message: string };
+  /** The server confirmed a `report()` call reached `abuse_log` (phase-3a-production.md §3.2). */
+  reported: undefined;
 }
 
 export interface SharerDependencies {
@@ -321,6 +323,18 @@ export class SharerSession extends Emitter<SharerEvents> {
   }
 
   /**
+   * "Something is wrong with this session" (phase-3a-production.md §3.2).
+   * Works regardless of who is actually at fault — that judgment is for
+   * whoever reads `abuse_log` afterward, not for this call to make.
+   */
+  report(reason?: string): void {
+    this.#signaling?.send({
+      type: 'session.report',
+      ...(reason === undefined ? {} : { reason }),
+    });
+  }
+
+  /**
    * A page going away for good is a host who meant to stop — as distinct from
    * a socket that dropped, which the server now holds open for a grace period
    * (§2.3). Without saying so here, closing a tab would look exactly like
@@ -359,6 +373,10 @@ export class SharerSession extends Emitter<SharerEvents> {
       // receives nothing at all.
       this.pending.set(message.request.participantId, message.request);
       this.emit('pending', message.request);
+    });
+
+    signaling.on('session.report.received', () => {
+      this.emit('reported', undefined);
     });
 
     // Only ever sent after approval, which is what makes offering here safe.

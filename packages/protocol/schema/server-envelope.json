@@ -471,6 +471,19 @@
           "properties": {
             "type": {
               "type": "string",
+              "const": "session.report.received"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
               "const": "pong"
             }
           },

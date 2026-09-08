@@ -4,7 +4,14 @@ import type { ConnectionQuality, ConnectionState } from '@crossscreen/protocol';
 import { ApiClient, qualityFrom, ViewerSession, type ViewerPhase } from '@crossscreen/webrtc-core';
 
 import { useFullscreen } from '../components/Fullscreen.tsx';
-import { Button, Card, Notice, QualityBadge, StatusDot } from '../components/Primitives.tsx';
+import {
+  Button,
+  Card,
+  Notice,
+  QualityBadge,
+  ReportButton,
+  StatusDot,
+} from '../components/Primitives.tsx';
 import { apiBaseUrl, forceRelay, signalingUrl } from '../config.ts';
 import { navigate } from '../router.ts';
 import { tagParticipant } from '../sentry.ts';
@@ -23,6 +30,7 @@ export function Viewer({ joinCode, joinToken }: { joinCode?: string; joinToken?:
   const [connection, setConnection] = useState<ConnectionState>('connecting');
   const [stats, setStats] = useState<string | undefined>();
   const [quality, setQuality] = useState<ConnectionQuality | undefined>();
+  const [reported, setReported] = useState(false);
 
   const video = useRef<HTMLVideoElement | null>(null);
   const stage = useRef<HTMLDivElement | null>(null);
@@ -55,6 +63,9 @@ export function Viewer({ joinCode, joinToken }: { joinCode?: string; joinToken?:
     });
     viewer.on('participant', ({ participantId }) => {
       tagParticipant(participantId);
+    });
+    viewer.on('reported', () => {
+      setReported(true);
     });
     viewer.on('stream', setStream);
     viewer.on('connection', ({ state }) => {
@@ -138,7 +149,8 @@ export function Viewer({ joinCode, joinToken }: { joinCode?: string; joinToken?:
         />
 
         {!fullscreen.isFullscreen && (
-          <div className="flex justify-end">
+          <div className="flex items-center justify-between">
+            <ReportButton onReport={() => session.current?.report()} reported={reported} />
             <Button
               variant="secondary"
               onClick={() => {

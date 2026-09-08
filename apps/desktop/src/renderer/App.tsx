@@ -23,6 +23,7 @@ import {
   Card,
   CopyField,
   QualityToggle,
+  ReportButton,
   StatusDot,
 } from './components.tsx';
 import { apiBaseUrl, forceRelay, signalingUrl } from './config.ts';
@@ -51,6 +52,7 @@ export function App() {
   const [quality, setQuality] = useState<QualityMode>('text');
   // Off by default (ui-scope.md §1 C4) — see AudioToggle for why.
   const [systemAudio, setSystemAudio] = useState(false);
+  const [reported, setReported] = useState(false);
 
   const capture = useRef(new ElectronCapture());
   const capabilities = capture.current.capabilities();
@@ -63,6 +65,7 @@ export function App() {
     setPhase('stopped');
     setPending([]);
     setViewers(0);
+    setReported(false);
   }, []);
 
   useEffect(() => {
@@ -125,6 +128,9 @@ export function App() {
     active.on('ended', ({ reason }) => {
       setMessage(reason);
       stop();
+    });
+    active.on('reported', () => {
+      setReported(true);
     });
 
     try {
@@ -336,7 +342,8 @@ export function App() {
                   </span>
                 </div>
 
-                <div className="flex gap-3">
+                <div className="flex items-center gap-3">
+                  <ReportButton onReport={() => sharer.current?.report()} reported={reported} />
                   <Button
                     variant="secondary"
                     onClick={() => {

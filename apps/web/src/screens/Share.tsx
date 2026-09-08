@@ -14,7 +14,7 @@ import {
 import { ApprovalPrompt } from '../components/ApprovalPrompt.tsx';
 import { AudioToggle } from '../components/AudioToggle.tsx';
 import { CopyField } from '../components/CopyField.tsx';
-import { Button, Card, Notice, StatusDot } from '../components/Primitives.tsx';
+import { Button, Card, Notice, ReportButton, StatusDot } from '../components/Primitives.tsx';
 import { QualityToggle } from '../components/QualityToggle.tsx';
 import { SafetyNotice, useSafetyNotice } from '../components/SafetyNotice.tsx';
 import { apiBaseUrl, forceRelay, signalingUrl } from '../config.ts';
@@ -40,6 +40,7 @@ export function Share() {
   // Off by default (ui-scope.md §1 C4) — see AudioToggle for why the mockup's
   // default of on does not hold up.
   const [systemAudio, setSystemAudio] = useState(false);
+  const [reported, setReported] = useState(false);
 
   const sharer = useRef<SharerSession | undefined>(undefined);
   const capture = useRef(new BrowserCapture());
@@ -109,6 +110,9 @@ export function Share() {
     active.on('ended', ({ reason }) => {
       setMessage(reason);
       stop();
+    });
+    active.on('reported', () => {
+      setReported(true);
     });
 
     try {
@@ -235,7 +239,8 @@ export function Share() {
                   </span>
                 </div>
 
-                <div className="flex gap-3">
+                <div className="flex items-center gap-3">
+                  <ReportButton onReport={() => sharer.current?.report()} reported={reported} />
                   <Button variant="secondary" onClick={() => void switchScreen()}>
                     Share something else
                   </Button>
