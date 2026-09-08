@@ -85,6 +85,11 @@ export default defineConfig({
         API_PORT: '8888',
         APP_ORIGIN: 'http://127.0.0.1:5273',
         LOG_LEVEL: 'warn',
+        // Every test in this suite runs against one server process from one
+        // address (127.0.0.1) and between them create close to ADR-0006's
+        // 20-per-hour default worth of sessions — turned up so the suite
+        // does not rate-limit itself (phase-3a-production.md §3.1).
+        RATE_LIMIT_SESSIONS_PER_HOUR: '100000',
       },
     },
     {
@@ -106,6 +111,12 @@ export default defineConfig({
         // to turn down for the whole run rather than only one test.
         SESSION_IDLE_TIMEOUT_MS: '3000',
         SESSION_SWEEP_INTERVAL_MS: '500',
+        // Every test in this suite runs against one server process from one
+        // address (127.0.0.1) and between them make far more than ADR-0006's
+        // 5-per-minute join attempts before the run finishes — turned up so
+        // the suite does not rate-limit itself (phase-3a-production.md §3.1).
+        RATE_LIMIT_CODE_PER_MINUTE: '100000',
+        RATE_LIMIT_CODE_PER_HOUR: '100000',
       },
     },
     {

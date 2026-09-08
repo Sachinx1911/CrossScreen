@@ -7,6 +7,7 @@ import {
   type ServerMessage,
 } from '@crossscreen/protocol';
 import type { Recorder } from '@crossscreen/db';
+import type { RateLimiter } from '@crossscreen/rate-limit';
 import type { WebSocket } from 'ws';
 
 import { config } from './config.ts';
@@ -32,6 +33,8 @@ export interface Connection {
   socket: WebSocket;
   /** Where durable records go. A no-op when no database is configured. */
   recorder: Recorder;
+  /** Shared across every connection, keyed by `ipHash` (phase-3a-production.md §3.1). */
+  joinAttemptLimiter: RateLimiter;
   userAgent: string | undefined;
   /**
    * A keyed hash of the address, never the address. Enough to count repeats
@@ -134,6 +137,22 @@ function viewerRequest(
   id: string,
   store: SessionStore,
 ): void {
+  // Checked before the lookup, deliberately: this is what actually stops
+  // enumeration (ADR-0006, phase-3a-production.md §3.1) — a limit applied
+  // only to failures would still let someone try five *correct-looking*
+  // codes a second. `ipHash` is undefined only when the socket had no
+  // remote address at all, an edge case rare enough that failing open on it
+  // — rather than lumping every such connection into one shared bucket — is
+  // the safer default.
+  if (connection.ipHash !== undefined) {
+    const result = connection.joinAttemptLimiter.hit(connection.ipHash);
+    if (!result.allowed) {
+      sendError(connection.socket, 'RATE_LIMITED', id);
+      log.warn('viewer.request_refused', { reason: 'rate_limited' });
+      return;
+    }
+  }
+
   const session =
     payload.joinToken !== undefined
       ? store.byToken(payload.joinToken)
@@ -161,6 +180,16 @@ function viewerRequest(
 
   if (session.endedReason !== undefined) {
     sendError(connection.socket, 'SESSION_EXPIRED', id);
+    return;
+  }
+
+  // A locked session refuses every *new* join attempt — but not a resume: a
+  // viewer already approved before the lock tripped presenting its own
+  // credentials is not a guess, and the lock exists to stop guessing, not to
+  // drop someone who was already let in.
+  if (session.locked && payload.resume === undefined) {
+    sendError(connection.socket, 'SESSION_LOCKED', id);
+    log.warn('viewer.request_refused', { reason: 'locked', sessionId: session.sessionId });
     return;
   }
 
@@ -344,6 +373,18 @@ function reject(
     participantId: viewer.id,
   });
   log.info('viewer.rejected', { sessionId: session.sessionId, participantId: viewer.id });
+
+  // A rejection counts against the session regardless of who made the
+  // request (ADR-0006, phase-3a-production.md §3.1) — the per-IP RateLimiter
+  // in server.ts is the other half of this, for a guesser who rotates
+  // addresses instead of repeatedly hitting the same one.
+  if (session.recordFailedAttempt()) {
+    connection.recorder.abuseEvent({
+      event: 'session_locked',
+      detail: { sessionId: session.sessionId },
+    });
+    log.warn('session.locked', { sessionId: session.sessionId });
+  }
 }
 
 function endSession(connection: Connection, id: string, store: SessionStore): void {

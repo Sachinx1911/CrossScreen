@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 
 import { createRecorder, hashIp } from '@crossscreen/db';
 import { HEARTBEAT, parseClientEnvelope } from '@crossscreen/protocol';
+import { RateLimiter } from '@crossscreen/rate-limit';
 import * as Sentry from '@sentry/node';
 import { WebSocketServer, type WebSocket } from 'ws';
 
@@ -42,6 +43,19 @@ process.on('unhandledRejection', (reason) => {
 const store = new InMemorySessionStore();
 const recorder = createRecorder(config.databaseUrl, log);
 
+/** The numbers ADR-0006 fixed: 5 join attempts per IP per minute, 20 per hour. */
+const joinAttemptLimiter = new RateLimiter([
+  { windowMs: 60_000, max: config.codeAttemptsPerMinute },
+  { windowMs: 3_600_000, max: config.codeAttemptsPerHour },
+]);
+// In-memory, so it needs the same periodic eviction SessionStore's own sweep
+// gets — an address that knocked once years ago must not sit in memory
+// forever.
+const limiterSweep = setInterval(() => {
+  joinAttemptLimiter.sweep();
+}, 60_000);
+limiterSweep.unref();
+
 const http = createServer((req, res) => {
   if (req.url === '/healthz') {
     res.writeHead(200, { 'content-type': 'application/json' });
@@ -57,6 +71,7 @@ wss.on('connection', (socket: WebSocket, req) => {
   const connection: Connection = {
     socket,
     recorder,
+    joinAttemptLimiter,
     userAgent: req.headers['user-agent'],
     // Hashed at the edge, so the address itself never travels further into the
     // service than this line (architecture §42).
@@ -172,6 +187,14 @@ const joinRequestSweep = setInterval(() => {
       sessionId: session.sessionId,
       participantId: viewer.id,
     });
+
+    // An unanswered request counts the same as an explicit rejection
+    // (handlers.ts's `reject`, ADR-0006) — from a guesser's side the two look
+    // identical, so the lock has to treat them the same.
+    if (session.recordFailedAttempt()) {
+      recorder.abuseEvent({ event: 'session_locked', detail: { sessionId: session.sessionId } });
+      log.warn('session.locked', { sessionId: session.sessionId });
+    }
   }
 }, 1_000);
 joinRequestSweep.unref();

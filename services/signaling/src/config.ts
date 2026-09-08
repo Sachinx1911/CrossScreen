@@ -7,7 +7,7 @@
  * configuration rather than by code.
  */
 
-import { SESSION_TIMEOUTS } from '@crossscreen/protocol';
+import { RATE_LIMITS, SESSION_TIMEOUTS } from '@crossscreen/protocol';
 
 import { log } from './log.ts';
 
@@ -141,6 +141,25 @@ export const config = {
    * reporting off and says so once at startup.
    */
   sentryDsn: process.env['SENTRY_DSN'],
+  /**
+   * ADR-0006's numbers, overridable for the same reason every other timing
+   * constant here is: a wire-level test suite that shares one server process
+   * across many tests makes far more than 5 join attempts from one address
+   * (127.0.0.1) in the time the whole file takes to run, and needs to turn
+   * this up rather than being rate limited by its own test harness.
+   */
+  codeAttemptsPerMinute: intFromEnv(
+    'RATE_LIMIT_CODE_PER_MINUTE',
+    RATE_LIMITS.codeAttemptsPerIpPerMinute,
+    1,
+    1_000_000,
+  ),
+  codeAttemptsPerHour: intFromEnv(
+    'RATE_LIMIT_CODE_PER_HOUR',
+    RATE_LIMITS.codeAttemptsPerIpPerHour,
+    1,
+    1_000_000,
+  ),
   // LOG_LEVEL is deliberately absent. It is read in log.ts instead, because
   // this module logs its own rejections and cannot import a logger that
   // imports it back. A `logLevel` here would be read by nothing and changing

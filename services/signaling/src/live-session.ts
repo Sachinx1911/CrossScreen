@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { WebSocket } from 'ws';
 
 import {
+  RATE_LIMITS,
   SESSION_TIMEOUTS,
   type HostTokenClaims,
   type Participant,
@@ -80,6 +81,19 @@ export class LiveSession {
    * the same host can come back to it with the token it already has.
    */
   hostAwaySince: number | undefined;
+
+  /**
+   * Failed attempts against *this* session — a rejection or an unanswered
+   * request timing out — regardless of which address made them (ADR-0006).
+   * Counted per session rather than per IP because that is what stops a
+   * guesser rotating addresses from pestering one host indefinitely; the
+   * per-IP `RateLimiter` in `server.ts` is the other half, stopping one
+   * address enumerating many codes.
+   */
+  #failedAttempts = 0;
+
+  /** Set once `#failedAttempts` reaches `RATE_LIMITS.sessionLockThreshold`. Sticky: a session does not unlock itself. */
+  locked = false;
 
   readonly #viewers = new Map<string, Viewer>();
 
@@ -171,6 +185,21 @@ export class LiveSession {
     const removed = this.#viewers.delete(id);
     if (removed && this.#viewers.size === 0) this.emptySince = now;
     return removed;
+  }
+
+  /**
+   * A rejection or an unanswered request timing out (ADR-0006). Returns
+   * whether this attempt is the one that locked the session, so the caller
+   * knows to record it once rather than on every attempt after.
+   */
+  recordFailedAttempt(): boolean {
+    if (this.locked) return false;
+    this.#failedAttempts += 1;
+    if (this.#failedAttempts >= RATE_LIMITS.sessionLockThreshold) {
+      this.locked = true;
+      return true;
+    }
+    return false;
   }
 
   /**

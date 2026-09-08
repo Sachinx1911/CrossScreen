@@ -18,11 +18,14 @@ export interface CreatedSession {
 
 export class ApiError extends Error {
   readonly status: number;
+  /** The protocol `ErrorCode`, when the API returned one — `undefined` for a plain network failure or a response with no recognisable body. */
+  readonly code: string | undefined;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, code?: string) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -56,7 +59,18 @@ export class ApiClient {
     }
 
     if (!response.ok) {
-      throw new ApiError('CrossScreen is having trouble. Please try again.', response.status);
+      // Rate limiting and abuse refusals (phase-3a-production.md §3.1) carry
+      // their own plain-language text in the body — { error, userMessage } —
+      // the same shape every WebSocket error already uses. Falling back to
+      // the generic line covers a response with no body at all, or one from
+      // something that is not this API (a proxy's own error page, say).
+      const body = (await response.json().catch(() => undefined)) as
+        { error?: string; userMessage?: string } | undefined;
+      throw new ApiError(
+        body?.userMessage ?? 'CrossScreen is having trouble. Please try again.',
+        response.status,
+        body?.error,
+      );
     }
     return (await response.json()) as T;
   }

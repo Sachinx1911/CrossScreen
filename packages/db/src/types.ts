@@ -42,7 +42,8 @@ export interface ConnectionStat {
   connectionState?: string;
 }
 
-export type AbuseEventName = 'code_attempt_failed' | 'session_locked' | 'reported';
+export type AbuseEventName =
+  'code_attempt_failed' | 'session_locked' | 'too_many_sessions' | 'reported';
 
 export interface AbuseEvent {
   event: AbuseEventName;

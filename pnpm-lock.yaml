@@ -185,6 +185,15 @@ importers:
         specifier: ^5.7.2
         version: 5.9.3
 
+  packages/rate-limit:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.1
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
   packages/webrtc-core:
     dependencies:
       '@crossscreen/protocol':
@@ -209,6 +218,9 @@ importers:
       '@crossscreen/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
+      '@crossscreen/rate-limit':
+        specifier: workspace:*
+        version: link:../../packages/rate-limit
       '@fastify/cors':
         specifier: ^11.3.0
         version: 11.3.0
@@ -240,6 +252,9 @@ importers:
       '@crossscreen/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
+      '@crossscreen/rate-limit':
+        specifier: workspace:*
+        version: link:../../packages/rate-limit
       '@sentry/node':
         specifier: ^10.73.0
         version: 10.73.0(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1))

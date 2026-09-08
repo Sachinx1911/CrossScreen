@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { before, test } from 'node:test';
 
 import { verifyHostToken } from '@crossscreen/protocol';
+import { RateLimiter } from '@crossscreen/rate-limit';
 
 const SECRET = 'a-test-secret-long-enough-to-be-accepted';
 
@@ -18,12 +19,14 @@ before(async () => {
 /** Collects what would have been recorded, without a database. */
 function spyRecorder() {
   const events: unknown[] = [];
+  const abuse: unknown[] = [];
   return {
     events,
+    abuse,
     recorder: {
       sessionEvent: (event: unknown) => events.push(event),
       connectionStat: () => undefined,
-      abuseEvent: () => undefined,
+      abuseEvent: (event: unknown) => abuse.push(event),
       close: () => Promise.resolve(),
     },
   };
@@ -161,4 +164,54 @@ test('an unrelated origin is not allowed', async () => {
   await app.close();
 
   assert.equal(response.headers['access-control-allow-origin'], undefined);
+});
+
+/**
+ * Session creation is rate limited to 20 per IP per hour (ADR-0006,
+ * phase-3a-production.md §3.1) — an anonymous, unauthenticated endpoint
+ * (ADR-0007) is otherwise a free way to fill the database. A tight limiter
+ * is injected rather than turning down `RATE_LIMIT_SESSIONS_PER_HOUR`,
+ * since this is the one test in the file that actually needs to trip it.
+ */
+
+test('creating a session past the limit is refused in plain language', async () => {
+  const spy = spyRecorder();
+  const limiter = new RateLimiter([{ windowMs: 3_600_000, max: 2 }]);
+  const app = buildApp(spy.recorder as never, undefined, limiter);
+
+  await app.inject({ method: 'POST', url: '/api/v1/sessions' });
+  await app.inject({ method: 'POST', url: '/api/v1/sessions' });
+  const third = await app.inject({ method: 'POST', url: '/api/v1/sessions' });
+  await app.close();
+
+  assert.equal(third.statusCode, 429);
+  const body = third.json() as { error: string; userMessage: string };
+  assert.equal(body.error, 'TOO_MANY_SESSIONS');
+  assert.match(body.userMessage, /wait before starting another/);
+  assert.equal(spy.abuse.length, 1);
+  assert.equal((spy.abuse[0] as { event: string }).event, 'too_many_sessions');
+});
+
+test('two different addresses each get their own budget', async () => {
+  const limiter = new RateLimiter([{ windowMs: 3_600_000, max: 1 }]);
+  const app = buildApp(spyRecorder().recorder as never, undefined, limiter);
+
+  const first = await app.inject({
+    method: 'POST',
+    url: '/api/v1/sessions',
+    remoteAddress: '203.0.113.7',
+  });
+  const second = await app.inject({
+    method: 'POST',
+    url: '/api/v1/sessions',
+    remoteAddress: '203.0.113.8',
+  });
+  await app.close();
+
+  assert.equal(first.statusCode, 201);
+  assert.equal(
+    second.statusCode,
+    201,
+    "a different address has not touched the first one's budget",
+  );
 });

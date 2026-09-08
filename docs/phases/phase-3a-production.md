@@ -33,6 +33,60 @@ are enforced:
 This is what turns a six-digit code from a weakness into an acceptable trade —
 without it, ADR-0006 is only half implemented.
 
+> **3.1 done, 2026-09-08.** `RATE_LIMITS` had named these numbers since
+> Phase 0 and nothing enforced any of them — `SESSION_LOCKED`,
+> `RATE_LIMITED` and `TOO_MANY_SESSIONS` all existed as error codes with
+> plain-language text and were unreachable in every client.
+>
+> A new shared `@crossscreen/rate-limit` package (`RateLimiter`) is the
+> per-IP half: a sliding window per key, checked in signaling before the
+> join-code/link lookup even runs — refusing only failures would still let
+> someone try five _correct-looking_ codes a second, so the check has to sit
+> ahead of the lookup, not behind it — and in the API service before a
+> session is created. "Exponential backoff" turned out to mean the
+> `retryAfterMs` hint grows per consecutive refusal while the underlying
+> window still re-admits on its own schedule; the two are independent by
+> design, so a client's own backoff can be told to wait longer than the
+> window strictly requires without the server needing a second clock to
+> track that.
+>
+> The per-session lock is `LiveSession.recordFailedAttempt()` — the other
+> half, for a guesser who rotates addresses instead of repeatedly hitting
+> the one that's rate limited. It counts a host's rejection and an
+> unanswered request timing out the same way, since from the guesser's side
+> the two look identical, and locks the session (refusing every _new_ join
+> attempt, but not a resume — an already-approved viewer presenting its own
+> credentials is not a guess) once ten accumulate.
+>
+> One real gap this closed in passing: `ApiClient` always showed the same
+> generic "having trouble" line regardless of what the server actually
+> said, because it never read the response body at all. A rate-limit
+> refusal would have been real and completely invisible to whoever hit it.
+> `ApiError` now carries the server's own `code`/`userMessage` when the
+> body has one, falling back to the generic line only when it does not.
+>
+> Testing: 11 new unit tests for `RateLimiter` itself (window enforcement,
+> backoff growth and reset, sweep hygiene); `LiveSession.recordFailedAttempt`
+> tested directly; 9 new handler-level tests (rate limiting, the lock, and
+> that a resume bypasses it) using a fresh limiter per test rather than a
+> shared wire-level server, specifically to avoid the cross-test pollution a
+> shared one would cause; 4 new `ApiClient` tests for the error-surfacing
+> fix; 2 new API-side tests for the session-creation limit. Discovered along
+> the way: both the wire-level signaling suite and the full Playwright suite
+> share one server process and one address (127.0.0.1) across many tests,
+> so both now run with the limits turned up via env override
+> (`RATE_LIMIT_CODE_PER_MINUTE` etc.) — a fresh find, not a pre-existing
+> pattern copied blindly; the first run without it failed nine session-flow
+> tests by rate-limiting the test harness against itself. Full monorepo
+> build, lint, typecheck and unit suite (260 tests across 12 packages); pnpm
+> format; a markdown link check; and the full 18-test Playwright suite, all
+> green.
+>
+> **Not verified:** a real brute-force run against a live deployment, the
+> way this phase's own Verification section asks for — everything here is
+> proven at the unit and wire-transport level, not against a genuinely
+> hostile client hammering a public endpoint.
+
 ### 3.2 — Abuse prevention
 
 Public screen-sharing services are a standard vector for tech-support scams,

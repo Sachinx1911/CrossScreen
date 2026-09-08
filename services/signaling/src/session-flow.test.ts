@@ -27,6 +27,12 @@ before(async () => {
   process.env['SIGNALING_PORT'] = String(PORT);
   process.env['SESSION_SECRET'] = SECRET;
   process.env['LOG_LEVEL'] = 'error';
+  // Every test in this file shares one server process and one address
+  // (127.0.0.1), and between them make far more than ADR-0006's 5-per-minute
+  // join attempts before the file finishes — turned up so the test harness
+  // does not rate-limit itself (phase-3a-production.md §3.1).
+  process.env['RATE_LIMIT_CODE_PER_MINUTE'] = '100000';
+  process.env['RATE_LIMIT_CODE_PER_HOUR'] = '100000';
   await import('./server.ts');
   await new Promise((r) => setTimeout(r, 300));
 });

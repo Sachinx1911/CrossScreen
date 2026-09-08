@@ -1,5 +1,7 @@
 import cors from '@fastify/cors';
-import { createRecorder, type Recorder } from '@crossscreen/db';
+import { createRecorder, hashIp, type Recorder } from '@crossscreen/db';
+import { userMessageFor } from '@crossscreen/protocol';
+import { RateLimiter } from '@crossscreen/rate-limit';
 import * as Sentry from '@sentry/node';
 import Fastify, { type FastifyError, type FastifyInstance } from 'fastify';
 
@@ -30,6 +32,10 @@ function turnConfigFromEnv(): CloudflareTurnConfig | undefined {
 export function buildApp(
   recorder: Recorder = createRecorder(config.databaseUrl, log),
   turnSource: TurnCredentialSource = new TurnCredentialSource(turnConfigFromEnv(), log),
+  /** ADR-0006's number: 20 session creations per IP per hour (phase-3a-production.md §3.1). */
+  sessionLimiter: RateLimiter = new RateLimiter([
+    { windowMs: 3_600_000, max: config.sessionsPerIpPerHour },
+  ]),
 ): FastifyInstance {
   const app = Fastify({ logger: false, trustProxy: true });
 
@@ -64,11 +70,20 @@ export function buildApp(
    * Create a session.
    *
    * Deliberately unauthenticated: MVP sessions are anonymous (ADR-0007).
-   * Rate limiting arrives in Phase 3a — until then this is an open endpoint,
-   * which is fine on a developer machine and must not reach the internet
-   * without it.
+   * Rate limited to 20 per IP per hour (ADR-0006, phase-3a-production.md
+   * §3.1) — otherwise an anonymous, unauthenticated endpoint is a free way to
+   * fill the database.
    */
   app.post('/api/v1/sessions', async (request, reply) => {
+    const ipHash = hashIp(request.ip, config.sessionSecret);
+    if (ipHash !== undefined && !sessionLimiter.hit(ipHash).allowed) {
+      recorder.abuseEvent({ event: 'too_many_sessions', ipHash });
+      log.warn('session.rate_limited', {});
+      return reply
+        .code(429)
+        .send({ error: 'TOO_MANY_SESSIONS', userMessage: userMessageFor('TOO_MANY_SESSIONS') });
+    }
+
     const session = await createSession();
 
     // The internal id is recorded, the join code is not: a durable table of

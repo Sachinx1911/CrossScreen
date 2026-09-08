@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { SESSION_TIMEOUTS, type HostTokenClaims } from '@crossscreen/protocol';
+import { RATE_LIMITS, SESSION_TIMEOUTS, type HostTokenClaims } from '@crossscreen/protocol';
 
 import { LiveSession } from './live-session.ts';
 
@@ -432,4 +432,32 @@ test('a session expires at its hard ceiling however busy it is', () => {
   });
 
   assert.equal(session.isExpired(now + 13 * 60 * 60 * 1000), true, '12-hour ceiling');
+});
+
+/**
+ * `recordFailedAttempt` is the per-session half of phase-3a-production.md
+ * §3.1 — the other half is the per-IP `RateLimiter` in `server.ts`, which
+ * stops one address enumerating many codes. This is what stops a guesser who
+ * rotates addresses from pestering one host indefinitely instead.
+ */
+
+test('a session locks on the Nth failed attempt, not before', () => {
+  const session = new LiveSession(claims(), fakeSocket());
+  for (let i = 0; i < RATE_LIMITS.sessionLockThreshold - 1; i += 1) {
+    assert.equal(session.recordFailedAttempt(), false);
+    assert.equal(session.locked, false);
+  }
+  assert.equal(
+    session.recordFailedAttempt(),
+    true,
+    'the threshold-th attempt is the one that locks it',
+  );
+  assert.equal(session.locked, true);
+});
+
+test('locking is reported once, not on every attempt after', () => {
+  const session = new LiveSession(claims(), fakeSocket());
+  for (let i = 0; i < RATE_LIMITS.sessionLockThreshold; i += 1) session.recordFailedAttempt();
+  assert.equal(session.recordFailedAttempt(), false, 'already locked — nothing new to report');
+  assert.equal(session.locked, true, 'but it stays locked');
 });

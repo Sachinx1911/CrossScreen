@@ -1,3 +1,5 @@
+import { RATE_LIMITS } from '@crossscreen/protocol';
+
 import { log } from './log.ts';
 
 /**
@@ -117,4 +119,17 @@ export const config = {
    * rather than a fresh clone needing a Sentry account to start at all.
    */
   sentryDsn: process.env['SENTRY_DSN'],
+
+  /**
+   * ADR-0006's number for `POST /api/v1/sessions` (phase-3a-production.md
+   * §3.1). Overridable for the same reason `TURN_CREDENTIAL_TTL_SECONDS` is:
+   * a test that creates several sessions against one `buildApp()` instance
+   * must not rate-limit itself.
+   */
+  sessionsPerIpPerHour: intFromEnv(
+    'RATE_LIMIT_SESSIONS_PER_HOUR',
+    RATE_LIMITS.sessionsPerIpPerHour,
+    1,
+    1_000_000,
+  ),
 } as const;
