@@ -5,8 +5,9 @@ screens (Share, Join), Jetpack Compose, nothing wired to `MediaProjection`
 or `org.webrtc` yet on purpose — the same order Phase 0.5 held the rest of
 this project to: prove the toolchain before building a feature on it.
 
-**Status: written, not yet built.** Read this before trusting anything
-under `app/`.
+**Status: builds and runs.** Verified 2026-09-08 on an Android 15
+(`google_apis`, x86_64) emulator via Android Studio — the home screen
+(`CrossScreen` / "Share your screen" / "Join a session") renders correctly.
 
 ## What is actually verified
 
@@ -15,15 +16,41 @@ under `app/`.
   present, and `system-images;android-35;google_apis;x86_64` (Android 15,
   the version phase-4-android.md calls out for its screen-lock-stops-capture
   behaviour) installed successfully.
-- Android Studio's bundled JBR (`Java 25`, at `Android Studio/jbr`) starts
-  and reports its version correctly.
-- The Android Gradle command-line tools (`sdkmanager`, `avdmanager`) were
-  downloaded and used successfully to install the above.
+- **Gradle sync and build succeed** in Android Studio, and the app installs
+  and launches on the Android 15 emulator, showing the real Compose UI.
+- `gradle/wrapper/gradle-wrapper.properties` exists (Android Studio wrote
+  it on first sync) and is what the IDE reads to pick a Gradle
+  distribution. **`gradlew`/`gradlew.bat`/`gradle-wrapper.jar` do not
+  exist yet** — Android Studio's IDE-integrated sync uses its own Tooling
+  API connection and never needed them. Command-line builds (`./gradlew
+  build`, and CI) will need those generated first, by running `gradle
+  wrapper` from a shell where Gradle can actually execute — not yet done.
 
-## What is not verified, and why
+## Fixed: the AGP/Gradle version mismatch
 
-**No Gradle command has ever run to completion in this environment** — not
-`gradle wrapper`, not a build, nothing. Every attempt fails identically:
+The first sync attempt failed with:
+
+```
+java.lang.NoClassDefFoundError: org.gradle.features.binding.ProjectTypeBinding
+```
+
+**Cause:** the project pinned AGP 9.4.0, and Android Studio's own "use
+latest" default pulled Gradle **9.7.1** — one patch release newer than the
+Gradle version AGP 9.4.0 actually targets (**9.6.0**, per the [official
+release notes](https://developer.android.com/build/releases/agp-9-4-0-release-notes)).
+9.7.1 changed an internal (non-public) Gradle class that AGP 9.4.0's
+plugin code depends on by exact shape, hence `NoClassDefFoundError` rather
+than a version-mismatch warning.
+
+**Fix:** `gradle/wrapper/gradle-wrapper.properties` now pins
+`distributionUrl` to `gradle-9.6.0-bin.zip` explicitly, matching AGP
+9.4.0's documented default. Sync and build succeeded immediately after.
+
+## Historical note: Gradle could not run in the agent's sandboxed shell
+
+Before Android Studio was used directly, every attempt to run Gradle
+(including `gradle wrapper` itself) from the coding agent's Bash tool
+failed with:
 
 ```
 java.io.IOException: Unable to establish loopback connection
@@ -34,50 +61,20 @@ Caused by: java.net.SocketException: Invalid argument: connect
   at sun.nio.ch.UnixDomainSockets.connect0(Native Method)
 ```
 
-Traced down to a minimal 4-line Java program calling
+Traced to a minimal 4-line Java program calling
 `java.nio.channels.Selector.open()` directly — nothing Gradle-specific.
-Modern JDKs (confirmed on both JBR 25 and Temurin 21 — this is not a JDK
-version issue) implement `Selector`'s internal wakeup pipe on Windows using
-an `AF_UNIX` domain socket, and that specific `connect()` call fails in
-this sandboxed shell with "Invalid argument" — a low-level Winsock error,
-not a Java one. Forcing the classic `WindowsSelectorProvider` instead of
-the newer `WEPollSelectorProvider` changes which class opens the pipe but
-not the outcome: both go through the same `PipeImpl` code path underneath.
+Confirmed not JDK-version-specific (same failure on JBR 25 and Temurin 21)
+and not general loopback breakage (plain `ServerSocket`/`Socket` TCP works
+fine in the same shell) — specifically an `AF_UNIX` domain socket
+restriction in that sandboxed shell, below the JVM. **Opening the project
+in Android Studio directly (a separate, non-sandboxed process) sidestepped
+this entirely**, which is how the wrapper and the build above were
+actually produced. This note is kept for anyone hitting the same wall from
+an equivalent sandboxed shell.
 
-Plain TCP loopback sockets (`ServerSocket`/`Socket`) work fine in this same
-shell — this is specifically about `AF_UNIX`, not loopback networking in
-general. Whatever restricts it appears to sit below the JVM, in this
-sandboxed shell's own environment (the same category of gap that stopped
-Docker Desktop's named pipe from connecting during this project's Phase 3a
-work) — not something a JVM flag was found to route around.
+## Next
 
-**Practically: any JVM program using NIO selectors — which is effectively
-every modern build tool — cannot run from this particular shell.** Gradle
-needs a working `Selector` even in `--no-daemon` mode, since the build
-process it forks still communicates with the launcher over one.
-
-## What to do next
-
-**Open this directory in Android Studio directly**, not through this
-shell. The IDE's own Gradle integration is a different process, launched
-by you rather than spawned from this sandboxed shell, and may not hit the
-same restriction — that is the next thing worth actually finding out.
-Opening the project will also generate the Gradle wrapper
-(`gradlew`/`gradlew.bat`/`gradle/wrapper/`), which is deliberately **not**
-committed here yet: writing wrapper files by hand without ever running
-`gradle wrapper` to produce them would mean guessing at a binary jar's
-contents, which is a worse kind of unverified than simply not having it.
-
-If Android Studio's own build also fails with the same "Unable to
-establish loopback connection" error, that rules out this being specific
-to the sandboxed shell and points at something machine-wide — worth
-reporting back either way.
-
-## Once a build succeeds
-
-Report back what happened (built cleanly / built with warnings / failed
-with what error) so `docs/phases/phase-4-android.md` can record real
-status instead of this file's disclosed uncertainty, and so the actual
-next slice of work — Kotlin protocol types generated from
-`packages/protocol/schema/`, then `MediaProjection`, then `org.webrtc` —
-has a foundation confirmed to compile before anything is built on it.
+Foundation confirmed to compile and run. Next slice of Phase 4 work:
+Kotlin protocol types generated from `packages/protocol/schema/`, then
+`MediaProjection` capture, then `org.webrtc` wiring, then the foreground
+service with correct Android 14+ start ordering.

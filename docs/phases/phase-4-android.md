@@ -3,6 +3,13 @@
 **Estimate:** 6–8 weeks part-time · **Depends on:** Phase 3a
 **Planning depth:** medium. Full breakdown written at the start of Phase 3b.
 
+**Status (2026-09-08):** toolchain proven, no product code yet. The
+`apps/android` walking skeleton (Gradle/Kotlin/Compose, two placeholder
+screens) builds and runs on an Android 15 emulator — see
+[`apps/android/README.md`](../../apps/android/README.md) for what that
+actually verifies and the AGP/Gradle version pin it took to get there.
+None of the deliverables below are started.
+
 ## Goal
 
 The first genuinely new capability after the MVP: sharing a phone screen.
