@@ -18,13 +18,15 @@ this project to: prove the toolchain before building a feature on it.
   behaviour) installed successfully.
 - **Gradle sync and build succeed** in Android Studio, and the app installs
   and launches on the Android 15 emulator, showing the real Compose UI.
-- `gradle/wrapper/gradle-wrapper.properties` exists (Android Studio wrote
-  it on first sync) and is what the IDE reads to pick a Gradle
-  distribution. **`gradlew`/`gradlew.bat`/`gradle-wrapper.jar` do not
-  exist yet** — Android Studio's IDE-integrated sync uses its own Tooling
-  API connection and never needed them. Command-line builds (`./gradlew
-  build`, and CI) will need those generated first, by running `gradle
-  wrapper` from a shell where Gradle can actually execute — not yet done.
+- **Command-line builds now work too.** `gradlew`, `gradlew.bat` and
+  `gradle-wrapper.jar` are committed, generated with `gradle wrapper
+  --gradle-version 9.6.0` from a plain Bash shell on macOS — the sandboxed
+  shell described below is not a universal problem, only whatever
+  environment first hit it. `./gradlew build` runs the full debug and
+  release variants, lint and the (currently empty) unit test task,
+  end to end, needing only `sdk.dir` set in a local, gitignored
+  `local.properties` — `sdk.dir=<path to the Android SDK>`, wherever
+  Android Studio or `sdkmanager` put it on that machine.
 
 ## Fixed: the AGP/Gradle version mismatch
 
@@ -69,8 +71,16 @@ fine in the same shell) — specifically an `AF_UNIX` domain socket
 restriction in that sandboxed shell, below the JVM. **Opening the project
 in Android Studio directly (a separate, non-sandboxed process) sidestepped
 this entirely**, which is how the wrapper and the build above were
-actually produced. This note is kept for anyone hitting the same wall from
-an equivalent sandboxed shell.
+actually produced.
+
+**Confirmed machine-specific, not platform-specific, 2026-09-08.** The same
+4-line `Selector.open()` program succeeds without incident from a plain
+Bash shell on macOS — `KQueueSelectorImpl`, no `AF_UNIX` wakeup pipe
+involved at all — and `./gradlew build` completed there in one attempt once
+`local.properties` pointed at the SDK. So this was never "agents can't run
+Gradle"; it was one sandboxed shell's socket policy. Kept here for anyone
+hitting the same wall from an equivalent restricted shell, now with the
+counter-evidence that it is not universal.
 
 ## Next
 
