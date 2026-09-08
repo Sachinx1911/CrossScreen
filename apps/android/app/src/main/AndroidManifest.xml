@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+      No permissions declared yet on purpose. MediaProjection's own
+      permission is requested at runtime through its consent dialog, not
+      declared statically — and the FOREGROUND_SERVICE_MEDIA_PROJECTION
+      manifest entry the real Share screen will need arrives with the
+      foreground service itself, not before there is one to describe
+      (phase-4-android.md: the Android 14+ start-ordering rule this app
+      still has to get right).
+    -->
+
+    <application
+        android:allowBackup="true"
+        android:icon="@android:drawable/sym_def_app_icon"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.CrossScreen">
+
+        <!--
+          Exported: this is the only entry point today and it launches from
+          the home screen, which is exactly what android:exported="true"
+          is for — not a default left unexamined.
+        -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>

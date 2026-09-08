@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Compose draws its own Material3 theme (MainActivity.kt); this only
+         needs to exist so the manifest's android:theme has somewhere valid
+         to point before the first Composable ever runs. -->
+    <style name="Theme.CrossScreen" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
