@@ -1,0 +1,31 @@
+# Mirrors .gitignore's build/dependency exclusions — none of this needs to
+# reach the build context, and node_modules in particular would otherwise
+# ship this machine's own platform-specific binaries into the image instead
+# of the ones `pnpm install` produces for the image's own platform.
+node_modules
+.pnpm-store
+dist
+dist-types
+build
+out
+release
+*.tsbuildinfo
+.turbo
+.vite
+
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+
+*.log
+logs
+
+.git
+.github
+
+# Not a pnpm workspace member (outside the pnpm graph, per its own repo
+# structure) — nothing here ever needs it in a Docker build context.
+apps/android

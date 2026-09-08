@@ -182,6 +182,34 @@ anycast network, so no `turn.` host of our own.
 conflict (ADR-0010 open). Do this before ordering certificates or code-signing
 under the name.
 
+> **3.4 written, 2026-09-08 — not yet proven.** The stack this section
+> describes now exists as code: Dockerfiles for `api` and `signaling`
+> (multi-stage — a builder that runs `turbo run build` for the service and
+> its workspace dependencies, then a slim runtime image); an nginx image
+> that builds the web viewer and serves it alongside reverse-proxying
+> `api.`/`signal.` to the two services, using nginx's own template
+> mechanism so `${DOMAIN}` is the one thing that changes per deploy rather
+> than per Dockerfile; `infrastructure/docker-compose.prod.yml` wiring all
+> four plus a certbot renewal loop together; and
+> [`docs/deployment.md`](../deployment.md), the actual runbook — DNS first,
+> plain HTTP up, certbot's one-time bootstrap, then the TLS blocks
+> uncommented.
+>
+> `docker compose config` confirms the file itself is valid — real syntax,
+> real variable interpolation, and the required variables
+> (`SESSION_SECRET`, `POSTGRES_PASSWORD`, `DOMAIN`) genuinely refuse to
+> start blank rather than silently deploying broken. **That is where
+> verification stops.** Docker Desktop would not finish starting its
+> backend on the machine this was written on, so none of the following has
+> actually happened: a Dockerfile building, an image starting and passing
+> its health check, or a real share-and-join flow answered through nginx.
+> Nor has certbot's bootstrap run against a real domain — there is no
+> domain yet (ADR-0010, still open). This is written as code ready to be
+> proven, not as a deployment that has been — the same distinction this
+> project's own phase docs have drawn honestly before, and drawing it again
+> here matters more, not less, given this is the one that puts the product
+> in front of a stranger.
+
 ### 3.5 — Desktop distribution
 
 - Windows code signing. Budget lead time: certificate issuance is not instant.

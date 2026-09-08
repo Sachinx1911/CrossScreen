@@ -1,0 +1,129 @@
+# One nginx container playing all three roles the domain layout in
+# phase-3a-production.md §3.4 asks for: `app.` serves the built web viewer,
+# `api.` and `signal.` reverse-proxy to the two Node services. Three virtual
+# hosts distinguished by Host header, not three containers — the split is
+# what the layout needs, not a reason to run more nginx than one VPS wants.
+#
+# Templated by nginx's own image (files under /etc/nginx/templates/*.template
+# are envsubst'd into /etc/nginx/conf.d/*.conf at container start) — only
+# ${DOMAIN} is substituted (NGINX_ENVSUBST_FILTER=DOMAIN in the compose
+# environment), so nginx's own runtime variables ($http_upgrade, $host, ...)
+# below are left alone rather than mangled by envsubst too.
+#
+# TLS is commented out below rather than templated on/off: there is no
+# certificate to terminate with until certbot has actually run against a
+# real domain pointed at this VPS (see docs/deployment.md), and nginx
+# refusing to start on a missing cert file is a worse first-boot experience
+# than serving plain HTTP until that step is done.
+
+# ACME HTTP-01 challenge path, needed on every domain certbot will issue
+# for — kept outside the two proxy vhosts so it works before signaling and
+# api even exist to be proxied to.
+server {
+    listen 80;
+    server_name app.${DOMAIN} api.${DOMAIN} signal.${DOMAIN};
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 80;
+    server_name app.${DOMAIN};
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Client-side routing (/share, /join, /j/<token>, ...) — anything not a
+    # real static file falls back to the app shell, which reads the path
+    # itself. Without this, refreshing on /share is a 404 from nginx, not a
+    # question the app ever gets asked.
+    location / {
+        try_files $uri /index.html;
+    }
+}
+
+server {
+    listen 80;
+    server_name api.${DOMAIN};
+
+    location / {
+        proxy_pass http://api:8788;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+server {
+    listen 80;
+    server_name signal.${DOMAIN};
+
+    location / {
+        proxy_pass http://signaling:8787;
+        proxy_http_version 1.1;
+        # The WebSocket upgrade — without these three lines this is an
+        # ordinary HTTP proxy and every connection attempt fails at the
+        # handshake, silently as far as nginx's own access log is concerned.
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        # A signaling socket is meant to sit open for a whole session, not
+        # the minute nginx assumes an ordinary HTTP request needs.
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+}
+
+# --- Enable once certbot has issued a real certificate (docs/deployment.md) ---
+#
+# server {
+#     listen 443 ssl;
+#     server_name app.${DOMAIN};
+#     root /usr/share/nginx/html;
+#     index index.html;
+#     ssl_certificate     /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
+#     ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
+#     location / {
+#         try_files $uri /index.html;
+#     }
+# }
+#
+# server {
+#     listen 443 ssl;
+#     server_name api.${DOMAIN};
+#     ssl_certificate     /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
+#     ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
+#     location / {
+#         proxy_pass http://api:8788;
+#         proxy_set_header Host $host;
+#         proxy_set_header X-Real-IP $remote_addr;
+#         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+#         proxy_set_header X-Forwarded-Proto $scheme;
+#     }
+# }
+#
+# server {
+#     listen 443 ssl;
+#     server_name signal.${DOMAIN};
+#     ssl_certificate     /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
+#     ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
+#     location / {
+#         proxy_pass http://signaling:8787;
+#         proxy_http_version 1.1;
+#         proxy_set_header Upgrade $http_upgrade;
+#         proxy_set_header Connection "upgrade";
+#         proxy_set_header Host $host;
+#         proxy_set_header X-Real-IP $remote_addr;
+#         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+#         proxy_read_timeout 3600s;
+#         proxy_send_timeout 3600s;
+#     }
+# }

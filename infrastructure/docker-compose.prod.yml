@@ -1,0 +1,121 @@
+# Phase 3a §3.4 — the single-VPS stack the architecture always assumed:
+#
+#   nginx (TLS, reverse proxy)
+#     ├── api        (Fastify)
+#     ├── signaling  (ws)
+#     └── postgres
+#
+# `api` and `signaling` have been separate processes since Phase 1 for
+# exactly this moment — splitting them onto separate hosts later is a
+# compose change, not a rewrite.
+#
+# Run from the repository root:
+#
+#   docker compose -f infrastructure/docker-compose.prod.yml --env-file infrastructure/.env up -d --build
+#
+# See infrastructure/.env.example for what has to be set first, and
+# docs/deployment.md for the full walkthrough including the one-time
+# certbot bootstrap.
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: crossscreen
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set — see infrastructure/.env.example}
+      POSTGRES_DB: crossscreen
+    # No published port: only containers on this compose network — api and
+    # signaling — ever need to reach it. A database is not something this
+    # VPS should be answering the public internet on.
+    volumes:
+      - crossscreen-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U crossscreen -d crossscreen']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: ..
+      dockerfile: services/api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      API_PORT: 8788
+      API_HOST: 0.0.0.0
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET must be set — openssl rand -base64 32}
+      APP_ORIGIN: https://app.${DOMAIN:?DOMAIN must be set}
+      ALLOWED_ORIGINS: https://app.${DOMAIN}
+      DATABASE_URL: postgres://crossscreen:${POSTGRES_PASSWORD}@postgres:5432/crossscreen
+      CLOUDFLARE_TURN_KEY_ID: ${CLOUDFLARE_TURN_KEY_ID:-}
+      CLOUDFLARE_TURN_API_TOKEN: ${CLOUDFLARE_TURN_API_TOKEN:-}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+
+  signaling:
+    build:
+      context: ..
+      dockerfile: services/signaling/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SIGNALING_PORT: 8787
+      SIGNALING_HOST: 0.0.0.0
+      # Identical to api's — the two verify each other's host tokens without
+      # a shared database (ADR-0011). A mismatch here means every session
+      # fails at the first token check, silently as far as either service's
+      # own health check is concerned.
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET must be set — openssl rand -base64 32}
+      DATABASE_URL: postgres://crossscreen:${POSTGRES_PASSWORD}@postgres:5432/crossscreen
+      SENTRY_DSN: ${SENTRY_DSN:-}
+
+  nginx:
+    build:
+      context: ..
+      dockerfile: infrastructure/nginx/Dockerfile
+      args:
+        VITE_API_URL: https://api.${DOMAIN:?DOMAIN must be set}
+        VITE_SIGNALING_URL: wss://signal.${DOMAIN}
+    restart: unless-stopped
+    depends_on:
+      - api
+      - signaling
+    environment:
+      DOMAIN: ${DOMAIN}
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      # Populated by certbot below; empty and harmless before the TLS
+      # server blocks in default.conf.template are uncommented.
+      - certbot-certs:/etc/letsencrypt:ro
+      - certbot-webroot:/var/www/certbot:ro
+
+  # Issues and renews the origin certificate. Run once manually to bootstrap
+  # (docs/deployment.md) — the container below only *renews*, on a loop,
+  # once a certificate already exists; `certonly` on an empty
+  # /etc/letsencrypt would have nothing to renew.
+  certbot:
+    image: certbot/certbot:latest
+    restart: unless-stopped
+    volumes:
+      - certbot-certs:/etc/letsencrypt
+      - certbot-webroot:/var/www/certbot
+    # The standard certbot-in-compose renewal loop: check twice a day,
+    # backgrounded so `trap ... TERM` can still interrupt the sleep for a
+    # clean `docker compose down` rather than waiting out the last cycle.
+    # `$${!}` (not `$!`) because docker-compose's own `$$`-escaping runs
+    # before the string ever reaches this container's shell.
+    entrypoint: >
+      /bin/sh -c "trap exit TERM; while :; do certbot renew --webroot -w
+      /var/www/certbot --quiet; sleep 12h & wait $${!}; done"
+
+volumes:
+  crossscreen-pgdata:
+  certbot-certs:
+  certbot-webroot:
