@@ -1,0 +1,236 @@
+{
+  "android": [
+    {
+      "id": "A01",
+      "name": "Splash",
+      "priority": "MVP"
+    },
+    {
+      "id": "A02",
+      "name": "Onboarding 1 - Share",
+      "priority": "MVP"
+    },
+    {
+      "id": "A03",
+      "name": "Onboarding 2 - Connect",
+      "priority": "MVP"
+    },
+    {
+      "id": "A04",
+      "name": "Onboarding 3 - Secure",
+      "priority": "MVP"
+    },
+    {
+      "id": "A05",
+      "name": "Sign In / Sign Up",
+      "priority": "Optional MVP"
+    },
+    {
+      "id": "A06",
+      "name": "Home",
+      "priority": "MVP"
+    },
+    {
+      "id": "A07",
+      "name": "Share Screen - Options",
+      "priority": "MVP"
+    },
+    {
+      "id": "A08",
+      "name": "Android MediaProjection Pre-permission",
+      "priority": "MVP"
+    },
+    {
+      "id": "A09",
+      "name": "Active Sharing",
+      "priority": "MVP"
+    },
+    {
+      "id": "A10",
+      "name": "Stop Sharing Confirmation",
+      "priority": "MVP"
+    },
+    {
+      "id": "A11",
+      "name": "Join Session",
+      "priority": "MVP"
+    },
+    {
+      "id": "A12",
+      "name": "Connecting",
+      "priority": "MVP"
+    },
+    {
+      "id": "A13",
+      "name": "Viewer",
+      "priority": "MVP"
+    },
+    {
+      "id": "A14",
+      "name": "Connection Unstable",
+      "priority": "MVP"
+    },
+    {
+      "id": "A15",
+      "name": "Reconnecting",
+      "priority": "MVP"
+    },
+    {
+      "id": "A16",
+      "name": "Connection Failed",
+      "priority": "MVP"
+    },
+    {
+      "id": "A17",
+      "name": "Sessions",
+      "priority": "MVP"
+    },
+    {
+      "id": "A18",
+      "name": "Session Details",
+      "priority": "MVP"
+    },
+    {
+      "id": "A19",
+      "name": "Devices",
+      "priority": "MVP"
+    },
+    {
+      "id": "A20",
+      "name": "Settings",
+      "priority": "MVP"
+    },
+    {
+      "id": "A21",
+      "name": "Privacy & Security",
+      "priority": "MVP"
+    },
+    {
+      "id": "A22",
+      "name": "Empty State",
+      "priority": "MVP"
+    },
+    {
+      "id": "A23",
+      "name": "Expired Session",
+      "priority": "MVP"
+    }
+  ],
+  "ios": [
+    {
+      "id": "I01",
+      "name": "Splash",
+      "priority": "MVP"
+    },
+    {
+      "id": "I02",
+      "name": "Onboarding 1 - Share",
+      "priority": "MVP"
+    },
+    {
+      "id": "I03",
+      "name": "Onboarding 2 - Connect",
+      "priority": "MVP"
+    },
+    {
+      "id": "I04",
+      "name": "Onboarding 3 - Secure",
+      "priority": "MVP"
+    },
+    {
+      "id": "I05",
+      "name": "Sign In / Sign Up",
+      "priority": "Optional MVP"
+    },
+    {
+      "id": "I06",
+      "name": "Home",
+      "priority": "MVP"
+    },
+    {
+      "id": "I07",
+      "name": "Share Screen - Options",
+      "priority": "MVP"
+    },
+    {
+      "id": "I08",
+      "name": "iOS Broadcast Guidance",
+      "priority": "MVP"
+    },
+    {
+      "id": "I09",
+      "name": "Active Sharing",
+      "priority": "MVP"
+    },
+    {
+      "id": "I10",
+      "name": "Stop Sharing Confirmation",
+      "priority": "MVP"
+    },
+    {
+      "id": "I11",
+      "name": "Join Session",
+      "priority": "MVP"
+    },
+    {
+      "id": "I12",
+      "name": "Connecting",
+      "priority": "MVP"
+    },
+    {
+      "id": "I13",
+      "name": "Viewer",
+      "priority": "MVP"
+    },
+    {
+      "id": "I14",
+      "name": "Connection Unstable",
+      "priority": "MVP"
+    },
+    {
+      "id": "I15",
+      "name": "Reconnecting",
+      "priority": "MVP"
+    },
+    {
+      "id": "I16",
+      "name": "Connection Failed",
+      "priority": "MVP"
+    },
+    {
+      "id": "I17",
+      "name": "Sessions",
+      "priority": "MVP"
+    },
+    {
+      "id": "I18",
+      "name": "Session Details",
+      "priority": "MVP"
+    },
+    {
+      "id": "I19",
+      "name": "Devices",
+      "priority": "MVP"
+    },
+    {
+      "id": "I20",
+      "name": "Settings",
+      "priority": "MVP"
+    },
+    {
+      "id": "I21",
+      "name": "Privacy & Security",
+      "priority": "MVP"
+    },
+    {
+      "id": "I22",
+      "name": "Empty State",
+      "priority": "MVP"
+    },
+    {
+      "id": "I23",
+      "name": "Expired Session",
+      "priority": "MVP"
+    }
+  ]
+}

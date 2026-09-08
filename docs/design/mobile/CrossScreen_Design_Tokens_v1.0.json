@@ -1,0 +1,55 @@
+{
+  "brand": {
+    "name": "CrossScreen",
+    "tagline": "Any Screen. Any Device. Together."
+  },
+  "colors": {
+    "primary": "#2563EB",
+    "primaryDark": "#1D4ED8",
+    "success": "#10B981",
+    "danger": "#EF4444",
+    "warning": "#F59E0B",
+    "text": "#0F172A",
+    "textSecondary": "#64748B",
+    "border": "#E2E8F0",
+    "surface": "#FFFFFF",
+    "background": "#F8FAFC",
+    "darkBackground": "#0B1220",
+    "darkSurface": "#111827",
+    "darkText": "#F8FAFC",
+    "darkTextSecondary": "#94A3B8",
+    "darkBorder": "#243244"
+  },
+  "spacing": {
+    "base": 4,
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "xxl": 32,
+    "xxxl": 48
+  },
+  "radius": {
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 20,
+    "pill": 999
+  },
+  "android": {
+    "baseFrame": "360x800dp",
+    "touchTarget": 48,
+    "font": "Roboto/System"
+  },
+  "ios": {
+    "baseFrame": "390x844pt",
+    "touchTarget": 44,
+    "font": "SF Pro/System"
+  },
+  "motion": {
+    "fast": "150ms",
+    "normal": "200ms",
+    "slow": "250ms"
+  }
+}
