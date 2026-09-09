@@ -3,16 +3,21 @@
 **Estimate:** 6–8 weeks part-time · **Depends on:** Phase 3a
 **Planning depth:** medium. Full breakdown written at the start of Phase 3b.
 
-**Status (2026-09-08):** toolchain proven, first deliverable done. The
-`apps/android` walking skeleton (Gradle/Kotlin/Compose, two placeholder
-screens) builds and runs on an Android 15 emulator, command-line and CI can
-build it too (`./gradlew build` — see
+**Status (2026-09-09):** toolchain proven, protocol types generated, real
+`MediaProjection` capture written and **not yet build-verified**. The
+`apps/android` app (Gradle/Kotlin/Compose) builds and runs on an Android 15
+emulator, command-line and CI can build it too (`./gradlew build` — see
 [`apps/android/README.md`](../../apps/android/README.md) for the
 AGP/Gradle version pin and the sandboxed-shell dead end it took to get
-there), and **Kotlin protocol types are now generated from
-`packages/protocol`**, wired through `kotlinx.serialization`, and verified
-with round-trip tests against real envelope JSON. Nothing below that is
-started.
+there), and **Kotlin protocol types are generated from `packages/protocol`**,
+wired through `kotlinx.serialization`, verified with round-trip tests
+against real envelope JSON. Share Setup's "Start Sharing" now requests real
+capture consent and a foreground service with the correct Android 14+
+start ordering counts real frames from a `VirtualDisplay` — see
+[`apps/android/README.md`](../../apps/android/README.md#screen-capture-mediaprojection--foreground-service)
+for exactly what is proven versus what still needs a real build to confirm
+(the coding agent's own shell cannot run a Gradle build task at all, only
+`--version`). `org.webrtc` is the next remaining slice.
 
 ## Goal
 
@@ -42,14 +47,24 @@ version-dependent, and unforgiving:
 
 ## Deliverables
 
-- Kotlin app: Share and Join, following the mobile layouts in the mockup.
+- ~~Kotlin app: Share and Join, following the mobile layouts in the mockup.~~
+  **Done, 2026-09-08.** All four v1 screens — see
+  [`apps/android/README.md`](../../apps/android/README.md).
 - `MediaProjection` capture wired into `org.webrtc`, feeding the same signaling
-  protocol as every other client.
+  protocol as every other client. **Half done, 2026-09-09, unverified by
+  build:** real consent + capture + frame counting exist; the `org.webrtc`
+  half (a `VideoTrack`, a `PeerConnection`) does not yet.
 - ~~Kotlin protocol types generated from `packages/protocol/schema`, not
   hand-written.~~ **Done, 2026-09-08.** `pnpm --filter @crossscreen/protocol
 generate:kotlin` — see [`apps/android/README.md`](../../apps/android/README.md#protocol-types).
-- Foreground service with correct ordering and a persistent notification.
-- Honest handling of every OS-enforced interruption above.
+- ~~Foreground service with correct ordering and a persistent notification.~~
+  **Done, 2026-09-09, unverified by build.** `ScreenShareService` — see
+  [`apps/android/README.md`](../../apps/android/README.md#screen-capture-mediaprojection--foreground-service).
+- Honest handling of every OS-enforced interruption above. Started:
+  `MediaProjection.Callback.onStop()` covers the kill-switch chip and
+  Android 15 QPR1+'s screen-lock stop, surfaced as a plain-language message
+  on Home. Not yet covered: anything past capture stopping, since nothing
+  past capture (a live connection, a viewer) exists yet.
 - Play Store listing, signing and release track.
 
 ## Exit criteria

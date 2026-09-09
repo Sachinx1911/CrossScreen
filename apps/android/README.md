@@ -112,9 +112,58 @@ that; a passing test does.
 (exit criterion 6's second half) — regeneration is a manual step, the same
 as `generate:schema` already is for the JSON Schema files themselves.
 
+## Screen capture: MediaProjection + foreground service
+
+`capture/ScreenShareService.kt` is real, not mocked: Share Setup's "Start
+Sharing" now launches Android's actual `MediaProjectionManager` consent
+dialog (`MainActivity.requestCapture()`), and only on real approval starts
+`ScreenShareService` with the consent result as extras.
+
+The service exists specifically to get one ordering right, in one place:
+`startForeground()` — with `ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION`
+on API 29+ — runs as the *first* line of `onStartCommand()`, unconditionally,
+before `MediaProjectionManager.getMediaProjection()` is ever reached. Android
+14+ throws `SecurityException` on the reverse order; this is the app's one
+and only path to `getMediaProjection()`, so there is nowhere else the
+ordering could be gotten wrong by a later change.
+
+Deliberately stops short of `org.webrtc`. What it proves instead: real
+frames exist. A `VirtualDisplay` backed by the projection feeds a plain
+`ImageReader`, which counts frames on a background `HandlerThread` — no
+`VideoCapturer`, no `PeerConnectionFactory`, nothing WebRTC-shaped yet. The
+count surfaces on `ActiveSharingScreen` ("N frames captured") specifically
+so it can be watched increase against a real screen, not trusted on faith.
+
+`MediaProjection.Callback.onStop()` is the single teardown path regardless
+of who ends the session — the in-app "Stop Sharing" confirmation
+(`ScreenShareService.stopCapture()` calls `MediaProjection.stop()`, which
+triggers the same callback), the system's own kill-switch chip, or Android
+15 QPR1+'s screen-lock behaviour. `MainActivity` distinguishes the first
+case from the other two only to decide whether Home shows an explanation —
+an expected stop the user just confirmed shows nothing; every other stop
+shows its reason, in place ahead of a real signaling connection existing
+to report `CAPTURE_STOPPED_BY_SYSTEM` over.
+
+**Not yet verified by build.** Every actual Gradle task (`test`, `build`,
+even `--no-daemon`) still fails in the coding agent's own Bash tool shell
+with the exact `Unable to establish loopback connection` error described
+above — confirmed again on 2026-09-09, after the AGP/Gradle pin fix,
+specifically for tasks that fork a build process; `./gradlew --version`
+alone now succeeds (it needs no forked process), which is what changed,
+not the underlying restriction. This capture code was written and
+reviewed carefully but has not compiled anywhere yet. **Needs, before
+trusting it:** open in Android Studio (or run `./gradlew build` from an
+unrestricted shell), sync, run on the Android 15 emulator, walk Share
+Setup → grant the system capture-consent dialog → confirm the frame count
+on Active Sharing actually increases → Stop Sharing → confirm it returns
+to Home. A camera/screen-recording-capable emulator image is required —
+the existing `google_apis` Android 15 image already installed for this
+project qualifies.
+
 ## Next
 
 Toolchain proven, command-line builds work, protocol types generated and
-tested. Next slice of Phase 4 work: `MediaProjection` capture, then
-`org.webrtc` wiring, then the foreground service with correct Android 14+
-start ordering.
+tested, and `MediaProjection` capture is written (pending the build
+verification above). Next slice of Phase 4 work: `org.webrtc` wiring — a
+`VideoTrack` from the frames this service already produces, then a real
+`PeerConnection` over the existing signaling protocol.

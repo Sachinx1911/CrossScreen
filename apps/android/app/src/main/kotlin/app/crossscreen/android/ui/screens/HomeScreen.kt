@@ -26,9 +26,16 @@ import app.crossscreen.android.ui.theme.Spacing
  * avatar, no recent-sessions list — docs/ui-scope-mobile.md M1 cuts the
  * account surface those implied, and a sessions history is deferred rather
  * than built half-connected to nothing.
+ *
+ * [stoppedMessage] surfaces exactly one honest fact when non-null: sharing
+ * ended for a reason the user did not just choose on this screen — the
+ * system's kill-switch chip, Android 15 QPR1+'s screen-lock behaviour, or a
+ * denied capture permission (`ScreenShareService.CaptureState.Stopped`).
+ * Exit criterion 2's "explained in plain language, not a crash" starts here,
+ * not only once a real signaling connection exists to end.
  */
 @Composable
-fun HomeScreen(onShare: () -> Unit, onJoin: () -> Unit) {
+fun HomeScreen(onShare: () -> Unit, onJoin: () -> Unit, stoppedMessage: String? = null) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -41,6 +48,17 @@ fun HomeScreen(onShare: () -> Unit, onJoin: () -> Unit) {
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+
+        if (stoppedMessage != null) {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    stoppedMessage,
+                    modifier = Modifier.padding(Spacing.md),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
 
         Spacer()
 

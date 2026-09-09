@@ -44,6 +44,14 @@ import kotlinx.coroutines.delay
  * The confirmation on Stop matches the spec's exact copy ("Stop sharing your
  * screen?" / Cancel / Stop Sharing) — a screen being shared with no
  * confirmation before it ends is the wrong direction to be careless in.
+ *
+ * [framesCaptured] is the one honest signal this screen can show ahead of
+ * `org.webrtc`: a real count from `ScreenShareService`'s `ImageReader`, not
+ * a guess. Null keeps the preview above working unchanged and lets this
+ * screen still render sensibly for the mock-state paths that have not
+ * started real capture (there are none left after this slice, but the
+ * default costs nothing and avoids forcing every call site to know about
+ * capture internals).
  */
 @Composable
 fun ActiveSharingScreen(
@@ -51,6 +59,7 @@ fun ActiveSharingScreen(
     viewerCount: Int,
     connection: ConnectionState,
     onStopSharing: () -> Unit,
+    framesCaptured: Int? = null,
 ) {
     var elapsedSeconds by remember { mutableIntStateOf(0) }
     var confirmingStop by remember { mutableStateOf(false) }
@@ -89,6 +98,14 @@ fun ActiveSharingScreen(
                     shape = RoundedCornerShape(Radius.md),
                 ),
         )
+
+        if (framesCaptured != null) {
+            Text(
+                "$framesCaptured frames captured",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
 
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
             Text(

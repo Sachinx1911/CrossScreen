@@ -2,14 +2,24 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!--
-      No permissions declared yet on purpose. MediaProjection's own
-      permission is requested at runtime through its consent dialog, not
-      declared statically — and the FOREGROUND_SERVICE_MEDIA_PROJECTION
-      manifest entry the real Share screen will need arrives with the
-      foreground service itself, not before there is one to describe
-      (phase-4-android.md: the Android 14+ start-ordering rule this app
-      still has to get right).
+      Four permissions, all earned by ScreenShareService existing now
+      (capture/ScreenShareService.kt):
+        FOREGROUND_SERVICE / FOREGROUND_SERVICE_MEDIA_PROJECTION — the
+          Android 14+ requirement this app has been anxious about since the
+          walking skeleton: a foreground service of type mediaProjection is
+          mandatory before MediaProjectionManager.getMediaProjection() may
+          be called, and FOREGROUND_SERVICE_MEDIA_PROJECTION specifically is
+          what Android 14 added on top of the older, general permission.
+        POST_NOTIFICATIONS — Android 13+ requires runtime consent for any
+          notification, including a foreground service's; requested at the
+          point of use (MainActivity), not assumed.
+      None of these are declared "just in case" — MediaProjection's own
+      consent is still requested at runtime through its own system dialog,
+      not through a manifest permission at all.
     -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="true"
@@ -31,6 +41,18 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!--
+          Not exported: only this app ever starts it, over a plain Intent
+          from MainActivity, never from outside the process.
+          foregroundServiceType="mediaProjection" is what the OS checks
+          startForeground()'s type argument against — a mismatch here is a
+          crash, not a warning.
+        -->
+        <service
+            android:name=".capture.ScreenShareService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
     </application>
 
 </manifest>
