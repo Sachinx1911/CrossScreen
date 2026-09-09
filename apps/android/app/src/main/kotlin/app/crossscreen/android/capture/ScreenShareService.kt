@@ -107,6 +107,16 @@ class ScreenShareService : Service() {
         val projectionManager =
             getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         val projection = projectionManager.getMediaProjection(resultCode, data)
+        if (projection == null) {
+            // Documented as nullable rather than throwing — seen in practice
+            // when the consent token from captureLauncher's result has gone
+            // stale (an OS-killed Activity resumed later, say). No different
+            // in kind from the "consent missing entirely" branch above this
+            // function; same non-crashing answer applies.
+            _state.value = CaptureState.Stopped(reason = "Screen capture could not be started")
+            stopSelf()
+            return
+        }
         mediaProjection = projection
 
         projection.registerCallback(
