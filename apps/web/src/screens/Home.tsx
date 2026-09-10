@@ -6,7 +6,6 @@ import {
   DownloadIcon,
   GlobeIcon,
   LinkIcon,
-  LinuxIcon,
   LockIcon,
   MonitorIcon,
   PeopleIcon,
@@ -78,7 +77,10 @@ export function Home() {
 
 function Section({ id, children }: { id?: string; children: ReactNode }) {
   return (
-    <section id={id} className="mx-auto max-w-6xl scroll-mt-24 px-5 py-16 sm:py-20">
+    <section
+      id={id}
+      className="mx-auto max-w-[1180px] scroll-mt-24 px-5 py-16 sm:px-7 sm:py-[92px]"
+    >
       {children}
     </section>
   );
@@ -87,7 +89,7 @@ function Section({ id, children }: { id?: string; children: ReactNode }) {
 function SectionHeading({ title, sub }: { title: string; sub: string }) {
   return (
     <div className="text-center">
-      <h2 className="text-3xl font-bold tracking-tight">{title}</h2>
+      <h2 className="text-[34px] font-bold tracking-[-0.03em] sm:text-[42px]">{title}</h2>
       <p className="mx-auto mt-2 max-w-xl text-[var(--text-muted)]">{sub}</p>
     </div>
   );
@@ -105,14 +107,14 @@ function Hero({ canShare, reason }: { canShare: boolean; reason: string | undefi
   return (
     <section
       id="top"
-      className="scroll-mt-24 bg-linear-to-b from-brand-50/60 to-transparent dark:from-brand-500/5"
+      className="scroll-mt-24 bg-[radial-gradient(circle_at_85%_30%,var(--color-brand-50),transparent_45%)] dark:bg-[radial-gradient(circle_at_85%_30%,rgb(47_111_237/0.08),transparent_45%)]"
     >
-      <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 py-16 sm:py-24 lg:grid-cols-2">
+      <div className="mx-auto grid max-w-[1180px] items-center gap-14 px-5 py-16 sm:px-7 sm:py-24 lg:grid-cols-2">
         <div>
-          <p className="text-xs font-semibold tracking-[0.2em] text-brand-500 uppercase">
+          <p className="text-xs font-bold tracking-[0.2em] text-brand-500 uppercase">
             Any Screen. Any Device. Together.
           </p>
-          <h1 className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">
+          <h1 className="mt-4 text-[clamp(44px,6vw,72px)] leading-[0.98] font-extrabold tracking-[-0.04em]">
             Share your screen
             <br />
             <span className="text-brand-500">with anyone</span>
@@ -168,31 +170,37 @@ function Trust({ icon: Icon, label }: { icon: Icon; label: string }) {
   );
 }
 
-/** A stylised device cluster — no image asset, on-brand, with the two floating labels from the reference. */
+/**
+ * The device showcase from home-page-desing/prototype.html: a laptop, a
+ * tablet and a phone all showing the same screen. No image asset — the
+ * "screen" is a CSS gradient inside a dark bezel — so it adds nothing to
+ * load and scales cleanly.
+ */
 function HeroArt() {
+  const wall = 'h-full w-full bg-[linear-gradient(135deg,#0b1b4d,#2563eb_55%,#8bdcff)]';
+  const bezel =
+    'absolute overflow-hidden rounded-[18px] border-[7px] border-[#0f172a] shadow-[0_25px_60px_rgb(15_23_42/0.18)]';
+
   return (
-    <div className="relative mx-auto w-full max-w-md">
-      <div className="aspect-[4/3] rounded-2xl bg-linear-to-br from-brand-500 to-brand-700 shadow-[var(--shadow-card)]" />
-      <div className="absolute -bottom-4 -left-2 h-28 w-20 rounded-xl border-4 border-[var(--surface-page)] bg-linear-to-br from-brand-400 to-brand-600 sm:h-32 sm:w-24" />
-      <div className="card absolute -top-3 left-4 flex items-center gap-2 px-3 py-2 text-xs">
+    <div className="relative h-[300px] sm:h-[390px]">
+      <div className={`${bezel} right-0 top-6 aspect-[420/270] w-[70%] max-w-[420px]`}>
+        <div className={wall} />
+      </div>
+      <div className={`${bezel} bottom-1 left-2 aspect-[225/300] w-[42%] max-w-[225px]`}>
+        <div className={wall} />
+      </div>
+      <div className={`${bezel} bottom-0 left-[40%] aspect-[118/235] w-[24%] max-w-[118px]`}>
+        <div className={wall} />
+      </div>
+
+      <div className="card absolute top-10 left-0 flex items-center gap-2 px-4 py-3 text-xs font-bold">
         <WindowsIcon width={14} height={14} className="text-brand-500" />
-        <span>
-          <span className="font-semibold">You share</span>
-          <br />
-          on this device
-        </span>
+        You share on this device
       </div>
-      <div className="card absolute -right-3 top-1/3 flex items-center gap-2 px-3 py-2 text-xs">
+      <div className="card absolute top-[140px] right-0 flex items-center gap-2 px-4 py-3 text-xs font-bold">
         <GlobeIcon width={14} height={14} className="text-brand-500" />
-        <span>
-          <span className="font-semibold">They watch</span>
-          <br />
-          on any device
-        </span>
+        They watch on any device
       </div>
-      <p className="absolute -right-2 -bottom-6 max-w-[8rem] text-right">
-        <Scribble>One app · every device · no limits</Scribble>
-      </p>
     </div>
   );
 }
@@ -270,13 +278,14 @@ function WhereItWorks() {
             </h3>
             <Scribble>same experience everywhere</Scribble>
           </div>
+          {/* Linux is deliberately left off the messaging for now
+              (home-page-desing spec: "added later"). */}
           <ul className="mt-4 space-y-2 text-sm">
             <Row icon={WindowsIcon}>Windows</Row>
             <Row icon={AppleIcon}>macOS</Row>
-            <Row icon={LinuxIcon}>Linux</Row>
             <Row icon={AndroidIcon}>Android — the app</Row>
             <Row icon={AppleIcon} muted>
-              iPhone &amp; iPad can’t share a screen (an Apple limitation)
+              iPhone &amp; iPad — app in the works; watch in Safari today
             </Row>
           </ul>
         </div>
@@ -413,19 +422,19 @@ function Faqs() {
 
 function ClosingCta() {
   return (
-    <div className="mx-auto max-w-6xl px-5 pb-20">
-      <div className="flex flex-col items-center justify-between gap-6 rounded-2xl bg-brand-500 px-8 py-10 text-white sm:flex-row">
-        <div className="text-center sm:text-left">
-          <h2 className="text-2xl font-bold">Ready to share?</h2>
+    <div className="mx-auto max-w-[1180px] px-5 pb-24 sm:px-7">
+      <div className="flex flex-col items-start justify-between gap-6 rounded-[22px] bg-[linear-gradient(100deg,#2f6fed,#1f57c9)] px-8 py-10 text-white sm:flex-row sm:items-center sm:px-10">
+        <div>
+          <h2 className="text-[30px] font-bold">Ready to share?</h2>
           <p className="mt-1 text-brand-100">Help, teach, support — together.</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row">
           <button
             type="button"
             onClick={() => {
               navigate('/share');
             }}
-            className="inline-flex items-center gap-2 rounded-lg bg-white px-5 py-2.5 text-sm font-semibold text-brand-700 transition hover:bg-brand-50"
+            className="inline-flex items-center justify-center gap-2 rounded-[10px] bg-white px-5 py-3 text-sm font-bold text-brand-700 transition hover:bg-brand-50"
           >
             <PlayIcon width={16} height={16} />
             Start sharing
@@ -435,7 +444,7 @@ function ClosingCta() {
             onClick={() => {
               navigate('/join');
             }}
-            className="inline-flex items-center gap-2 rounded-lg border border-white/60 px-5 py-2.5 text-sm font-semibold transition hover:bg-white/10"
+            className="inline-flex items-center justify-center gap-2 rounded-[10px] border border-white/70 px-5 py-3 text-sm font-bold transition hover:bg-white/10"
           >
             <PeopleIcon width={16} height={16} />
             Join a session
