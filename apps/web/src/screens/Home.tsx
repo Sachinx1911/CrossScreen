@@ -5,7 +5,6 @@ import {
   CheckIcon,
   DownloadIcon,
   GlobeIcon,
-  LinkIcon,
   LockIcon,
   MonitorIcon,
   PeopleIcon,
@@ -92,14 +91,6 @@ function SectionHeading({ title, sub }: { title: string; sub: string }) {
       <h2 className="text-[34px] font-bold tracking-[-0.03em] sm:text-[42px]">{title}</h2>
       <p className="mx-auto mt-2 max-w-xl text-[var(--text-muted)]">{sub}</p>
     </div>
-  );
-}
-
-function Scribble({ children }: { children: ReactNode }) {
-  return (
-    <span className="inline-block -rotate-3 text-sm font-medium text-brand-500 italic">
-      {children}
-    </span>
   );
 }
 
@@ -206,56 +197,27 @@ function HeroArt() {
 }
 
 function HowItWorks() {
-  const steps: [string, string, string, Icon, string][] = [
+  const steps: [string, string, string][] = [
     [
       '1',
       'Start sharing',
       'Pick a screen or a window. Your browser asks — we never see it until you say yes.',
-      MonitorIcon,
-      'text-brand-500 bg-brand-50 dark:bg-brand-500/10',
     ],
-    [
-      '2',
-      'Send the code',
-      'You get a six-digit code and a link. Send whichever is easier.',
-      LinkIcon,
-      'text-status-good bg-status-good/10',
-    ],
-    [
-      '3',
-      'They watch',
-      'They open the link in any browser and wait for you to let them in.',
-      PeopleIcon,
-      'text-brand-700 bg-brand-100 dark:text-brand-100 dark:bg-brand-500/10',
-    ],
+    ['2', 'Send the code', 'You get a six-digit code and a link. Send whichever is easier.'],
+    ['3', 'They watch', 'They open the link in any browser and wait for you to let them in.'],
   ];
 
   return (
     <Section id="how-it-works">
       <SectionHeading title="How it works" sub="Share your screen in three simple steps" />
-      <div className="mt-10 grid gap-6 lg:grid-cols-3">
-        {steps.map(([n, title, body, Icon, badge], i) => (
-          <div key={n} className="relative">
-            <div className="card h-full p-6">
-              <span
-                className={`inline-flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold ${badge}`}
-              >
-                {n}
-              </span>
-              <Icon width={24} height={24} className="mt-4 text-[var(--text-muted)]" />
-              <h3 className="mt-3 font-semibold">{title}</h3>
-              <p className="mt-1 text-sm">
-                <Muted>{body}</Muted>
-              </p>
-            </div>
-            {i < steps.length - 1 && (
-              <span
-                aria-hidden="true"
-                className="absolute top-1/2 -right-4 hidden -translate-y-1/2 text-xl text-[var(--border-subtle)] lg:block"
-              >
-                ›
-              </span>
-            )}
+      <div className="mt-10 grid gap-5 sm:grid-cols-3">
+        {steps.map(([n, title, body]) => (
+          <div key={n} className="card p-5">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-brand-50 text-sm font-bold text-brand-500">
+              {n}
+            </span>
+            <h3 className="mt-3 font-semibold">{title}</h3>
+            <p className="mt-1 text-sm text-[var(--text-muted)]">{body}</p>
           </div>
         ))}
       </div>
@@ -272,12 +234,9 @@ function WhereItWorks() {
       />
       <div className="mt-10 grid gap-6 sm:grid-cols-2">
         <div className="card p-6">
-          <div className="flex items-center justify-between">
-            <h3 className="flex items-center gap-2 font-semibold">
-              <MonitorIcon width={18} height={18} className="text-brand-500" /> Share from
-            </h3>
-            <Scribble>same experience everywhere</Scribble>
-          </div>
+          <h3 className="flex items-center gap-2 font-semibold">
+            <MonitorIcon width={18} height={18} className="text-brand-500" /> Share from
+          </h3>
           {/* Linux is deliberately left off the messaging for now
               (home-page-desing spec: "added later"). */}
           <ul className="mt-4 space-y-2 text-sm">
@@ -291,12 +250,9 @@ function WhereItWorks() {
         </div>
 
         <div className="card p-6">
-          <div className="flex items-center justify-between">
-            <h3 className="flex items-center gap-2 font-semibold">
-              <GlobeIcon width={18} height={18} className="text-brand-500" /> Watch on
-            </h3>
-            <Scribble>nothing to install</Scribble>
-          </div>
+          <h3 className="flex items-center gap-2 font-semibold">
+            <GlobeIcon width={18} height={18} className="text-brand-500" /> Watch on
+          </h3>
           <ul className="mt-4 space-y-2 text-sm">
             <Row icon={CheckIcon}>Chrome</Row>
             <Row icon={CheckIcon}>Edge</Row>
