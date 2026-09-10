@@ -46,7 +46,10 @@ version-dependent, and unforgiving:
 ## Deliverables
 
 - ~~Kotlin app: Share and Join, following the mobile layouts in the mockup.~~
-  **Done, 2026-09-08.** All four v1 screens — see
+  **Done, 2026-09-08; Splash + Onboarding + Join paste added 2026-09-10
+  (unverified by build).** The full v1 screen list from
+  [`docs/ui-scope-mobile.md`](../ui-scope-mobile.md) §2 except a dedicated
+  Viewer (its own open question) — see
   [`apps/android/README.md`](../../apps/android/README.md).
 - `MediaProjection` capture wired into `org.webrtc`, feeding the same signaling
   protocol as every other client. **Capture → `VideoTrack` done, 2026-09-10,

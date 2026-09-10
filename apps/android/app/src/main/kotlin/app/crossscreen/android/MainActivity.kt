@@ -15,6 +15,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -35,15 +37,17 @@ import app.crossscreen.android.protocol.ConnectionState
 import app.crossscreen.android.ui.screens.ActiveSharingScreen
 import app.crossscreen.android.ui.screens.HomeScreen
 import app.crossscreen.android.ui.screens.JoinSessionScreen
+import app.crossscreen.android.ui.screens.OnboardingScreen
 import app.crossscreen.android.ui.screens.ShareSetupScreen
+import app.crossscreen.android.ui.screens.SplashScreen
 import app.crossscreen.android.ui.theme.CrossScreenTheme
 
 /**
- * Phase 4's design pass (docs/ui-scope-mobile.md): real screens for the
- * v1-scoped part of the loop — Home, Share Setup, Active Sharing, Join.
- * Sharing is real as of this slice: `MediaProjection` consent, the
- * Android 14+ foreground-service ordering, and a WebRTC `VideoTrack` from
- * the captured screen all go through `ScreenShareService`
+ * Phase 4's design pass (docs/ui-scope-mobile.md): the v1-scoped screens —
+ * Splash, Onboarding (first launch only), Home, Share Setup, Active
+ * Sharing, Join. Sharing is real: `MediaProjection` consent, the Android
+ * 14+ foreground-service ordering, and a WebRTC `VideoTrack` from the
+ * captured screen all go through `ScreenShareService`
  * (capture/ScreenShareService.kt), and Active Sharing renders that track
  * locally. What is *not* here yet: a `PeerConnection` and signaling — Join
  * still accepts any 6-digit code, and no session exists on the server for
@@ -55,11 +59,16 @@ import app.crossscreen.android.ui.theme.CrossScreenTheme
  * needed React Router.
  */
 private sealed interface Screen {
+    data object Splash : Screen
+    data object Onboarding : Screen
     data object Home : Screen
     data object ShareSetup : Screen
     data class ActiveSharing(val joinCodeDisplay: String) : Screen
     data object Join : Screen
 }
+
+private const val PREFS_NAME = "crossscreen.prefs"
+private const val KEY_ONBOARDING_SEEN = "onboarding_seen"
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -74,7 +83,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun CrossScreenApp() {
     val context = LocalContext.current
-    var screen by remember { mutableStateOf<Screen>(Screen.Home) }
+    val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
+    var screen by remember { mutableStateOf<Screen>(Screen.Splash) }
     var viewerCount by remember { mutableIntStateOf(0) }
     var homeMessage by remember { mutableStateOf<String?>(null) }
     var stoppedByUser by remember { mutableStateOf(false) }
@@ -170,33 +180,54 @@ private fun CrossScreenApp() {
 
     CrossScreenTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
-            when (val current = screen) {
-                is Screen.Home -> HomeScreen(
-                    onShare = { screen = Screen.ShareSetup },
-                    onJoin = { screen = Screen.Join },
-                    stoppedMessage = homeMessage,
-                )
+            // Restrained crossfade — design/mobile spec §13 asks for
+            // 150–250 ms transitions and nothing showier.
+            Crossfade(targetState = screen, animationSpec = tween(220), label = "screen") { current ->
+                when (current) {
+                    is Screen.Splash -> SplashScreen(
+                        onDone = {
+                            screen = if (prefs.getBoolean(KEY_ONBOARDING_SEEN, false)) {
+                                Screen.Home
+                            } else {
+                                Screen.Onboarding
+                            }
+                        },
+                    )
 
-                is Screen.ShareSetup -> ShareSetupScreen(
-                    onStartSharing = { requestCapture() },
-                    onBack = { screen = Screen.Home },
-                )
+                    is Screen.Onboarding -> OnboardingScreen(
+                        onFinish = {
+                            prefs.edit().putBoolean(KEY_ONBOARDING_SEEN, true).apply()
+                            screen = Screen.Home
+                        },
+                    )
 
-                is Screen.ActiveSharing -> ActiveSharingScreen(
-                    joinCodeDisplay = current.joinCodeDisplay,
-                    viewerCount = viewerCount,
-                    connection = if (viewerCount > 0) ConnectionState.CONNECTED else ConnectionState.CONNECTING,
-                    onStopSharing = {
-                        stoppedByUser = true
-                        boundService?.stopCapture()
-                    },
-                    screenCapture = screenCapture,
-                )
+                    is Screen.Home -> HomeScreen(
+                        onShare = { screen = Screen.ShareSetup },
+                        onJoin = { screen = Screen.Join },
+                        stoppedMessage = homeMessage,
+                    )
 
-                is Screen.Join -> JoinSessionScreen(
-                    onJoin = { screen = Screen.Home },
-                    onBack = { screen = Screen.Home },
-                )
+                    is Screen.ShareSetup -> ShareSetupScreen(
+                        onStartSharing = { requestCapture() },
+                        onBack = { screen = Screen.Home },
+                    )
+
+                    is Screen.ActiveSharing -> ActiveSharingScreen(
+                        joinCodeDisplay = current.joinCodeDisplay,
+                        viewerCount = viewerCount,
+                        connection = if (viewerCount > 0) ConnectionState.CONNECTED else ConnectionState.CONNECTING,
+                        onStopSharing = {
+                            stoppedByUser = true
+                            boundService?.stopCapture()
+                        },
+                        screenCapture = screenCapture,
+                    )
+
+                    is Screen.Join -> JoinSessionScreen(
+                        onJoin = { screen = Screen.Home },
+                        onBack = { screen = Screen.Home },
+                    )
+                }
             }
         }
     }

@@ -1,15 +1,22 @@
 # CrossScreen — Android
 
-Phase 4's app: a Gradle/Kotlin/Compose project with the four v1 screens
-(Home, Share Setup, Active Sharing, Join), real `MediaProjection` capture
-turned into a WebRTC `VideoTrack`, and no `PeerConnection` or signaling
-yet — built in that order on purpose, the same order Phase 0.5 held the
-rest of this project to: prove each layer before the next depends on it.
+Phase 4's app: a Gradle/Kotlin/Compose project covering the v1 screen list
+from [`docs/ui-scope-mobile.md`](../../docs/ui-scope-mobile.md) §2 — Splash,
+Onboarding (first launch only), Home, Share Setup, Active Sharing, Join —
+real `MediaProjection` capture turned into a WebRTC `VideoTrack`, and no
+`PeerConnection` or signaling yet. Built in that order on purpose, the same
+order Phase 0.5 held the rest of this project to: prove each layer before
+the next depends on it.
 
-**Status: the screens build and run** (verified 2026-09-08 on an Android 15
-`google_apis` x86_64 emulator). **The capture → `VideoTrack` slice is
-written but not yet build-verified** — see the section below for what that
+**Status: Home/Share Setup/Active Sharing/Join build and run** (verified
+2026-09-08 on an Android 15 `google_apis` x86_64 emulator). **Splash,
+Onboarding, the Join "Paste" affordance, and the capture → `VideoTrack`
+slice are written but not yet build-verified** — see below for what that
 needs.
+
+Still out of v1 scope, deliberately (ui-scope-mobile.md M1–M6): accounts
+and Sign In, the Devices screen, bottom navigation, the audio and
+annotation toggles, per-app capture, and the whole iOS side.
 
 ## What is actually verified
 
