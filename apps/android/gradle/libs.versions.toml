@@ -16,6 +16,12 @@ kotlinxSerializationJson = "1.9.0"
 # caution the AGP/Gradle pin (b092259) was a lesson in. Bump once 150 has
 # a few patch releases behind it.
 webrtc = "144.7559.15"
+# The one dependency the signaling/API client slice adds: OkHttp gives a
+# WebSocket and an HTTP client in one small library (~1 MB, minSdk 21).
+# 4.12.0, the long-settled LTS line, not 5.x — same "don't lead with the
+# newest" caution as the webrtc and AGP pins; the WebSocket + Call APIs
+# used here are identical across the two.
+okhttp = "4.12.0"
 junit = "4.13.2"
 
 [libraries]
@@ -30,6 +36,7 @@ androidx-material3 = { group = "androidx.compose.material3", name = "material3" 
 androidx-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
 webrtc = { group = "io.github.webrtc-sdk", name = "android", version.ref = "webrtc" }
+okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 
 [plugins]

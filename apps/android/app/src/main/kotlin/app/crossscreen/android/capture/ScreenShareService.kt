@@ -14,13 +14,11 @@ import android.os.IBinder
 import android.os.Looper
 import android.os.Parcelable
 import androidx.core.app.NotificationCompat
+import app.crossscreen.android.net.WebRtcCore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import org.webrtc.DefaultVideoDecoderFactory
-import org.webrtc.DefaultVideoEncoderFactory
 import org.webrtc.EglBase
-import org.webrtc.PeerConnectionFactory
 import org.webrtc.ScreenCapturerAndroid
 import org.webrtc.SurfaceTextureHelper
 import org.webrtc.VideoSource
@@ -56,8 +54,6 @@ class ScreenShareService : Service() {
     // here first (see the MediaProjection.Callback in beginCapture) so
     // dispose ordering never races setup.
     private var tearingDown = false
-    private var eglBase: EglBase? = null
-    private var factory: PeerConnectionFactory? = null
     private var screenCapturer: ScreenCapturerAndroid? = null
     private var surfaceTextureHelper: SurfaceTextureHelper? = null
     private var videoSource: VideoSource? = null
@@ -113,20 +109,12 @@ class ScreenShareService : Service() {
     }
 
     private fun beginCapture(permissionData: Intent) {
-        ensureFactoryInitialized(applicationContext)
-
-        val egl = EglBase.create()
-        eglBase = egl
-
-        val peerConnectionFactory = PeerConnectionFactory.builder()
-            .setVideoEncoderFactory(
-                // Prefer hardware VP8/VP9/H.264 where present, software
-                // otherwise. (enableIntelVp8Encoder, enableH264HighProfile)
-                DefaultVideoEncoderFactory(egl.eglBaseContext, true, true),
-            )
-            .setVideoDecoderFactory(DefaultVideoDecoderFactory(egl.eglBaseContext))
-            .createPeerConnectionFactory()
-        factory = peerConnectionFactory
+        // One factory and EglBase for the whole process — the same ones any
+        // PeerConnection this track is later added to must come from
+        // (net/WebRtcCore.kt).
+        WebRtcCore.ensureInitialized(applicationContext)
+        val factory = WebRtcCore.factory
+        val eglContext = WebRtcCore.eglBase.eglBaseContext
 
         val capturer = ScreenCapturerAndroid(
             permissionData,
@@ -144,20 +132,20 @@ class ScreenShareService : Service() {
         )
         screenCapturer = capturer
 
-        val helper = SurfaceTextureHelper.create("ScreenCaptureThread", egl.eglBaseContext)
+        val helper = SurfaceTextureHelper.create("ScreenCaptureThread", eglContext)
         surfaceTextureHelper = helper
 
         // isScreencast = true: turns on the screen-content coding paths
         // (architecture §9) — text stays sharp under bandwidth pressure
         // rather than the frame-rate-first behaviour tuned for camera video.
-        val source = peerConnectionFactory.createVideoSource(true)
+        val source = factory.createVideoSource(true)
         videoSource = source
         capturer.initialize(helper, applicationContext, source.capturerObserver)
 
         val metrics = resources.displayMetrics
         val (width, height) = fitWithin(metrics.widthPixels, metrics.heightPixels, MAX_EDGE_PX)
 
-        val track = peerConnectionFactory.createVideoTrack(VIDEO_TRACK_ID, source)
+        val track = factory.createVideoTrack(VIDEO_TRACK_ID, source)
         track.setEnabled(true)
         videoTrack = track
 
@@ -172,7 +160,7 @@ class ScreenShareService : Service() {
             return
         }
 
-        screenCapture = ScreenCapture(track = track, eglContext = egl.eglBaseContext)
+        screenCapture = ScreenCapture(track = track, eglContext = eglContext)
         _state.value = CaptureState.Capturing(width = width, height = height, fps = TARGET_FPS)
     }
 
@@ -208,10 +196,8 @@ class ScreenShareService : Service() {
         videoSource = null
         surfaceTextureHelper?.dispose()
         surfaceTextureHelper = null
-        factory?.dispose()
-        factory = null
-        eglBase?.release()
-        eglBase = null
+        // The factory and EglBase are WebRtcCore's, shared with the sessions
+        // and the whole process — never disposed here.
 
         // Do not overwrite a more specific Stopped reason a failed start may
         // already have set; do announce the stop of a live capture.
@@ -261,9 +247,10 @@ class ScreenShareService : Service() {
 
     override fun onDestroy() {
         // Belt and braces: finishCapture() already runs on every stop path,
-        // but a service killed some other way still must not leak native
-        // handles.
-        if (screenCapturer != null || factory != null || eglBase != null) {
+        // but a service killed some other way still must not leak the
+        // per-capture handles (the shared factory/EglBase are WebRtcCore's
+        // and outlive every service instance).
+        if (screenCapturer != null || videoSource != null || videoTrack != null) {
             finishCapture(reason = "Screen sharing stopped")
         }
         super.onDestroy()
@@ -288,28 +275,6 @@ class ScreenShareService : Service() {
         // in portrait therefore caps height, not width.
         private const val MAX_EDGE_PX = 1920
         private const val TARGET_FPS = 30
-
-        @Volatile
-        private var factoryInitialized = false
-
-        /**
-         * `PeerConnectionFactory.initialize()` is a once-per-process call and
-         * must precede any factory construction. Guarded rather than pushed
-         * into an `Application` subclass so an app launch that never shares a
-         * screen pays none of its cost.
-         */
-        private fun ensureFactoryInitialized(appContext: android.content.Context) {
-            if (factoryInitialized) return
-            synchronized(ScreenShareService::class.java) {
-                if (factoryInitialized) return
-                PeerConnectionFactory.initialize(
-                    PeerConnectionFactory.InitializationOptions
-                        .builder(appContext)
-                        .createInitializationOptions(),
-                )
-                factoryInitialized = true
-            }
-        }
 
         /** Scales (w, h) down so its longer edge is at most [maxEdge]; never scales up. */
         private fun fitWithin(w: Int, h: Int, maxEdge: Int): Pair<Int, Int> {
