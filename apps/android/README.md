@@ -1,13 +1,15 @@
 # CrossScreen — Android
 
-Phase 4's walking skeleton: a Gradle/Kotlin project with two placeholder
-screens (Share, Join), Jetpack Compose, nothing wired to `MediaProjection`
-or `org.webrtc` yet on purpose — the same order Phase 0.5 held the rest of
-this project to: prove the toolchain before building a feature on it.
+Phase 4's app: a Gradle/Kotlin/Compose project with the four v1 screens
+(Home, Share Setup, Active Sharing, Join), real `MediaProjection` capture
+turned into a WebRTC `VideoTrack`, and no `PeerConnection` or signaling
+yet — built in that order on purpose, the same order Phase 0.5 held the
+rest of this project to: prove each layer before the next depends on it.
 
-**Status: builds and runs.** Verified 2026-09-08 on an Android 15
-(`google_apis`, x86_64) emulator via Android Studio — the home screen
-(`CrossScreen` / "Share your screen" / "Join a session") renders correctly.
+**Status: the screens build and run** (verified 2026-09-08 on an Android 15
+`google_apis` x86_64 emulator). **The capture → `VideoTrack` slice is
+written but not yet build-verified** — see the section below for what that
+needs.
 
 ## What is actually verified
 
@@ -112,58 +114,71 @@ that; a passing test does.
 (exit criterion 6's second half) — regeneration is a manual step, the same
 as `generate:schema` already is for the JSON Schema files themselves.
 
-## Screen capture: MediaProjection + foreground service
+## Screen capture: MediaProjection → foreground service → WebRTC VideoTrack
 
 `capture/ScreenShareService.kt` is real, not mocked: Share Setup's "Start
-Sharing" now launches Android's actual `MediaProjectionManager` consent
-dialog (`MainActivity.requestCapture()`), and only on real approval starts
+Sharing" launches Android's actual `MediaProjectionManager` consent dialog
+(`MainActivity.requestCapture()`), and only on real approval starts
 `ScreenShareService` with the consent result as extras.
 
 The service exists specifically to get one ordering right, in one place:
 `startForeground()` — with `ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION`
 on API 29+ — runs as the *first* line of `onStartCommand()`, unconditionally,
-before `MediaProjectionManager.getMediaProjection()` is ever reached. Android
-14+ throws `SecurityException` on the reverse order; this is the app's one
-and only path to `getMediaProjection()`, so there is nowhere else the
-ordering could be gotten wrong by a later change.
+before anything reaches `MediaProjectionManager.getMediaProjection()` (which
+`ScreenCapturerAndroid.startCapture()` does internally). Android 14+ throws
+`SecurityException` on the reverse order; this is the app's one and only
+path into capture, so there is nowhere else the ordering could be gotten
+wrong by a later change.
 
-Deliberately stops short of `org.webrtc`. What it proves instead: real
-frames exist. A `VirtualDisplay` backed by the projection feeds a plain
-`ImageReader`, which counts frames on a background `HandlerThread` — no
-`VideoCapturer`, no `PeerConnectionFactory`, nothing WebRTC-shaped yet. The
-count surfaces on `ActiveSharingScreen` ("N frames captured") specifically
-so it can be watched increase against a real screen, not trusted on faith.
+**The capture is now a WebRTC `VideoTrack`.** `org.webrtc`'s
+`ScreenCapturerAndroid` (from the `io.github.webrtc-sdk:android` community
+build — Google stopped publishing `org.webrtc` in 2019; this is the same
+package, the one LiveKit and flutter-webrtc use) feeds a `VideoSource`
+created with `isScreencast = true` — the screen-content coding path from
+architecture §9, so text stays sharp under pressure rather than the
+frame-rate-first behaviour tuned for cameras. The long edge is capped at
+1920 and never upscaled. `ActiveSharingScreen` renders the resulting local
+track in a `SurfaceViewRenderer` (`ui/components/VideoPreview.kt`) — the
+same renderer the viewer side will use for the remote track, pointed at
+the local one for now. That rendered preview *is* the proof the pipeline
+works; there is no synthetic frame counter.
 
-`MediaProjection.Callback.onStop()` is the single teardown path regardless
-of who ends the session — the in-app "Stop Sharing" confirmation
-(`ScreenShareService.stopCapture()` calls `MediaProjection.stop()`, which
-triggers the same callback), the system's own kill-switch chip, or Android
-15 QPR1+'s screen-lock behaviour. `MainActivity` distinguishes the first
-case from the other two only to decide whether Home shows an explanation —
-an expected stop the user just confirmed shows nothing; every other stop
-shows its reason, in place ahead of a real signaling connection existing
-to report `CAPTURE_STOPPED_BY_SYSTEM` over.
+There is still **no `PeerConnection` and no signaling** — the track is
+created, enabled, and rendered locally, nothing more. A phone-originated
+session does not exist on the server for a peer to attach to.
+
+`ScreenShareService.finishCapture()` is the single teardown path regardless
+of trigger — the in-app "Stop Sharing" confirmation, the system's
+kill-switch chip and Android 15 QPR1+'s screen-lock stop (both via the
+`MediaProjection.Callback` handed to `ScreenCapturerAndroid`), a failed
+start, or `onDestroy`. It is re-entrant-safe and always runs on the main
+thread (the system callback posts to it). Every WebRTC handle is disposed
+there in order. `MainActivity` distinguishes only "the user just confirmed
+this" from everything else, to decide whether Home shows an explanation.
 
 **Not yet verified by build.** Every actual Gradle task (`test`, `build`,
 even `--no-daemon`) still fails in the coding agent's own Bash tool shell
-with the exact `Unable to establish loopback connection` error described
-above — confirmed again on 2026-09-09, after the AGP/Gradle pin fix,
-specifically for tasks that fork a build process; `./gradlew --version`
-alone now succeeds (it needs no forked process), which is what changed,
-not the underlying restriction. This capture code was written and
-reviewed carefully but has not compiled anywhere yet. **Needs, before
-trusting it:** open in Android Studio (or run `./gradlew build` from an
-unrestricted shell), sync, run on the Android 15 emulator, walk Share
-Setup → grant the system capture-consent dialog → confirm the frame count
-on Active Sharing actually increases → Stop Sharing → confirm it returns
-to Home. A camera/screen-recording-capable emulator image is required —
-the existing `google_apis` Android 15 image already installed for this
-project qualifies.
+with the `Unable to establish loopback connection` error described above —
+confirmed again after the AGP/Gradle pin fix, for any task that forks a
+build process; `./gradlew --version` alone now succeeds (no forked
+process). So this WebRTC wiring was written against the `m144_release`
+source (the `144.7559.x` line's exact `ScreenCapturerAndroid` /
+`PeerConnectionFactory` / `SurfaceViewRenderer` signatures were checked
+against it) and reviewed carefully, but has not compiled anywhere yet.
+**Needs, before trusting it:** open in Android Studio (or `./gradlew
+assembleDebug` from an unrestricted shell), sync — the first sync pulls
+the ~80 MB WebRTC AAR — run on the Android 15 emulator, walk Share Setup →
+grant the system capture-consent dialog → confirm Active Sharing shows a
+live picture of the emulator's own screen in the preview box → Stop
+Sharing → confirm it returns to Home. Then lock the emulator screen mid-share
+and confirm it returns to Home with "The system stopped screen sharing".
 
 ## Next
 
 Toolchain proven, command-line builds work, protocol types generated and
-tested, and `MediaProjection` capture is written (pending the build
-verification above). Next slice of Phase 4 work: `org.webrtc` wiring — a
-`VideoTrack` from the frames this service already produces, then a real
-`PeerConnection` over the existing signaling protocol.
+tested, `MediaProjection` capture and a WebRTC `VideoTrack` are written
+(pending the build verification above). Next slice of Phase 4 work: a
+Kotlin signaling client over the existing WSS protocol (`Protocol.kt` is
+already generated for it), then a `PeerConnection` that puts this track on
+the wire to a browser viewer — the first time a phone-originated session
+touches the server.

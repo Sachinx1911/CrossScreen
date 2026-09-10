@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import app.crossscreen.android.capture.CaptureState
+import app.crossscreen.android.capture.ScreenCapture
 import app.crossscreen.android.capture.ScreenShareService
 import app.crossscreen.android.protocol.ConnectionState
 import app.crossscreen.android.ui.screens.ActiveSharingScreen
@@ -40,13 +41,13 @@ import app.crossscreen.android.ui.theme.CrossScreenTheme
 /**
  * Phase 4's design pass (docs/ui-scope-mobile.md): real screens for the
  * v1-scoped part of the loop — Home, Share Setup, Active Sharing, Join.
- * Sharing itself is real as of this file: `MediaProjection` consent, the
- * Android 14+ foreground-service ordering, and actual captured frames all
- * go through `ScreenShareService` (capture/ScreenShareService.kt). `org.webrtc`
- * is still the next slice per phase-4-android.md's own ordering — nothing
- * here turns a frame into a `VideoTrack` yet — and Join still accepts any
- * 6-digit code rather than asking signaling, since no session exists on the
- * server for a phone-originated share to attach to.
+ * Sharing is real as of this slice: `MediaProjection` consent, the
+ * Android 14+ foreground-service ordering, and a WebRTC `VideoTrack` from
+ * the captured screen all go through `ScreenShareService`
+ * (capture/ScreenShareService.kt), and Active Sharing renders that track
+ * locally. What is *not* here yet: a `PeerConnection` and signaling — Join
+ * still accepts any 6-digit code, and no session exists on the server for
+ * a phone-originated share to attach to.
  *
  * State-based screen switching, not Navigation-Compose — same reasoning as
  * the walking skeleton this replaces: a handful of screens do not earn a
@@ -79,7 +80,7 @@ private fun CrossScreenApp() {
     var stoppedByUser by remember { mutableStateOf(false) }
 
     var boundService by remember { mutableStateOf<ScreenShareService?>(null) }
-    var captureState by remember { mutableStateOf<CaptureState>(CaptureState.Idle) }
+    var screenCapture by remember { mutableStateOf<ScreenCapture?>(null) }
 
     // Bound for this Activity's lifetime so the UI can observe capture
     // state and call stopCapture() directly. The service is also
@@ -108,15 +109,16 @@ private fun CrossScreenApp() {
 
     LaunchedEffect(boundService) {
         boundService?.state?.collect { state ->
-            captureState = state
+            // screenCapture is a plain var on the service (a VideoTrack is
+            // not a value type — see ScreenShareService); read it alongside
+            // each state change rather than observing it separately.
+            screenCapture = boundService?.screenCapture
             if (state is CaptureState.Stopped && screen is Screen.ActiveSharing) {
-                // A user-confirmed Stop Sharing still goes through this same
-                // CaptureState.Stopped path (ScreenShareService.stopCapture()
-                // -> MediaProjection.stop() -> its Callback.onStop()) — the
-                // service has exactly one teardown path regardless of who
-                // asked for it. stoppedByUser is what tells the two apart so
-                // an expected stop does not show a message explaining
-                // something the user just did themselves.
+                // A user-confirmed Stop Sharing and a system-initiated stop
+                // both land here — ScreenShareService.finishCapture() is the
+                // one teardown path, whoever triggered it. stoppedByUser is
+                // what tells the two apart, so an expected stop does not show
+                // a message explaining something the user just did.
                 homeMessage = if (stoppedByUser) null else state.reason
                 stoppedByUser = false
                 screen = Screen.Home
@@ -188,7 +190,7 @@ private fun CrossScreenApp() {
                         stoppedByUser = true
                         boundService?.stopCapture()
                     },
-                    framesCaptured = (captureState as? CaptureState.Capturing)?.frameCount,
+                    screenCapture = screenCapture,
                 )
 
                 is Screen.Join -> JoinSessionScreen(

@@ -8,6 +8,14 @@ composeBom = "2026.02.00"
 # Decodes packages/protocol/schema/*.json's payload once it reaches this app,
 # via the generated Protocol.kt (packages/protocol/src/generate-kotlin.ts).
 kotlinxSerializationJson = "1.9.0"
+# Google stopped publishing org.webrtc to Maven in 2019 (ADR-0003 says
+# "Google's org.webrtc" — this is that same package, kept current by the
+# webrtc-sdk community build, the one LiveKit and flutter-webrtc also use).
+# 144.7559.15 not the newer 150.7871.01 on purpose: 150 is days old with a
+# single patch, 144 is the settled end of its milestone line — the same
+# caution the AGP/Gradle pin (b092259) was a lesson in. Bump once 150 has
+# a few patch releases behind it.
+webrtc = "144.7559.15"
 junit = "4.13.2"
 
 [libraries]
@@ -21,6 +29,7 @@ androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-toolin
 androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
 androidx-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
+webrtc = { group = "io.github.webrtc-sdk", name = "android", version.ref = "webrtc" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 
 [plugins]

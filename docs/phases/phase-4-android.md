@@ -3,21 +3,19 @@
 **Estimate:** 6–8 weeks part-time · **Depends on:** Phase 3a
 **Planning depth:** medium. Full breakdown written at the start of Phase 3b.
 
-**Status (2026-09-09):** toolchain proven, protocol types generated, real
-`MediaProjection` capture written and **not yet build-verified**. The
-`apps/android` app (Gradle/Kotlin/Compose) builds and runs on an Android 15
-emulator, command-line and CI can build it too (`./gradlew build` — see
-[`apps/android/README.md`](../../apps/android/README.md) for the
-AGP/Gradle version pin and the sandboxed-shell dead end it took to get
-there), and **Kotlin protocol types are generated from `packages/protocol`**,
-wired through `kotlinx.serialization`, verified with round-trip tests
-against real envelope JSON. Share Setup's "Start Sharing" now requests real
-capture consent and a foreground service with the correct Android 14+
-start ordering counts real frames from a `VirtualDisplay` — see
-[`apps/android/README.md`](../../apps/android/README.md#screen-capture-mediaprojection--foreground-service)
-for exactly what is proven versus what still needs a real build to confirm
-(the coding agent's own shell cannot run a Gradle build task at all, only
-`--version`). `org.webrtc` is the next remaining slice.
+**Status (2026-09-10):** toolchain proven, protocol types generated, and
+the capture path — `MediaProjection` consent, the Android 14+
+foreground-service ordering, and a WebRTC `VideoTrack` via
+`org.webrtc`'s `ScreenCapturerAndroid`, rendered locally in Active Sharing
+— **written but not yet build-verified** (the coding agent's shell cannot
+run a Gradle build task, only `./gradlew --version`; a machine with a
+real build must confirm it). The four v1 screens build and run on an
+Android 15 emulator, and **Kotlin protocol types are generated from
+`packages/protocol`**, `kotlinx.serialization`-wired, round-trip tested.
+See [`apps/android/README.md`](../../apps/android/README.md#screen-capture-mediaprojection--foreground-service--webrtc-videotrack)
+for what is proven versus what a build still has to confirm. Still to do:
+a Kotlin signaling client and a `PeerConnection` — the first time a
+phone-originated session touches the server.
 
 ## Goal
 
@@ -51,15 +49,17 @@ version-dependent, and unforgiving:
   **Done, 2026-09-08.** All four v1 screens — see
   [`apps/android/README.md`](../../apps/android/README.md).
 - `MediaProjection` capture wired into `org.webrtc`, feeding the same signaling
-  protocol as every other client. **Half done, 2026-09-09, unverified by
-  build:** real consent + capture + frame counting exist; the `org.webrtc`
-  half (a `VideoTrack`, a `PeerConnection`) does not yet.
+  protocol as every other client. **Capture → `VideoTrack` done, 2026-09-10,
+  unverified by build:** consent, the ordering, `ScreenCapturerAndroid` →
+  `VideoSource(isScreencast=true)` → `VideoTrack`, rendered locally. The
+  `PeerConnection` and "feeding the signaling protocol" halves do not exist
+  yet — they need the Kotlin signaling client first.
 - ~~Kotlin protocol types generated from `packages/protocol/schema`, not
   hand-written.~~ **Done, 2026-09-08.** `pnpm --filter @crossscreen/protocol
 generate:kotlin` — see [`apps/android/README.md`](../../apps/android/README.md#protocol-types).
 - ~~Foreground service with correct ordering and a persistent notification.~~
-  **Done, 2026-09-09, unverified by build.** `ScreenShareService` — see
-  [`apps/android/README.md`](../../apps/android/README.md#screen-capture-mediaprojection--foreground-service).
+  **Done, 2026-09-10, unverified by build.** `ScreenShareService` — see
+  [`apps/android/README.md`](../../apps/android/README.md#screen-capture-mediaprojection--foreground-service--webrtc-videotrack).
 - Honest handling of every OS-enforced interruption above. Started:
   `MediaProjection.Callback.onStop()` covers the kill-switch chip and
   Android 15 QPR1+'s screen-lock stop, surfaced as a plain-language message

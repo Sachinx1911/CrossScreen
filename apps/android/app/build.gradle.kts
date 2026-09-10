@@ -70,5 +70,6 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.webrtc)
     testImplementation(libs.junit)
 }

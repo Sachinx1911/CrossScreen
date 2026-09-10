@@ -6,61 +6,74 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
-import android.hardware.display.DisplayManager
-import android.hardware.display.VirtualDisplay
-import android.media.ImageReader
 import android.media.projection.MediaProjection
-import android.media.projection.MediaProjectionManager
 import android.os.Binder
 import android.os.Build
-import android.os.HandlerThread
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.os.Parcelable
 import androidx.core.app.NotificationCompat
-import java.util.concurrent.atomic.AtomicInteger
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
+import org.webrtc.DefaultVideoDecoderFactory
+import org.webrtc.DefaultVideoEncoderFactory
+import org.webrtc.EglBase
+import org.webrtc.PeerConnectionFactory
+import org.webrtc.ScreenCapturerAndroid
+import org.webrtc.SurfaceTextureHelper
+import org.webrtc.VideoSource
+import org.webrtc.VideoTrack
 
 /**
  * The Android 14+ ordering rule phase-4-android.md has flagged since before
  * this app had a single Kotlin file: `startForeground()` with type
- * `mediaProjection` must complete *before*
- * `MediaProjectionManager.getMediaProjection()` is ever called, or the OS
- * throws `SecurityException` rather than returning null. That ordering is
- * why this whole flow lives in a `Service.onStartCommand()` — the one place
- * guaranteed to run the two in the right sequence — and not inline in
- * `MainActivity` where it would be one refactor away from being silently
- * reordered.
+ * `mediaProjection` must complete *before* the OS is asked for a
+ * `MediaProjection` — here, before `ScreenCapturerAndroid.startCapture()`,
+ * which reaches `MediaProjectionManager.getMediaProjection()` internally.
+ * Android throws `SecurityException` on the reverse order. That ordering is
+ * why this flow lives in `Service.onStartCommand()` — the one place
+ * guaranteed to run the two in sequence — and not inline in `MainActivity`
+ * where a later refactor could silently reorder it.
  *
- * Deliberately stops short of `org.webrtc` (phase-4-android.md's own next
- * item, after this one). What this proves instead: real user consent, the
- * ordering above, and actual frames arriving from a `VirtualDisplay` backed
- * by this projection — counted, not assumed — via a plain `ImageReader`.
- * Turning those frames into a `VideoTrack` is additive work on top of a
- * mechanism already shown to produce them, the same split the walking
- * skeleton itself made between "the toolchain builds" and "the app does
- * anything".
+ * This slice turns the captured screen into a WebRTC `VideoTrack` and no
+ * further: `org.webrtc`'s `ScreenCapturerAndroid` feeds a `VideoSource`
+ * created with `isScreencast = true`, and the resulting track is exposed
+ * for the UI to render locally (ActiveSharingScreen's live preview). There
+ * is no `PeerConnection` yet and no signaling — a phone-originated session
+ * does not exist on the server for one to attach to. Proving the
+ * capture -> encoder-input -> renderable-track path first, then adding the
+ * peer, is the same split the walking skeleton made between "the toolchain
+ * builds" and "the app does anything".
  */
 class ScreenShareService : Service() {
     private val binder = LocalBinder()
-    private val serviceScope = CoroutineScope(SupervisorJob())
-    private var frameSamplerJob: Job? = null
-    private var handlerThread: HandlerThread? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
 
-    private var mediaProjection: MediaProjection? = null
-    private var virtualDisplay: VirtualDisplay? = null
-    private var imageReader: ImageReader? = null
-    private val frameCount = AtomicInteger(0)
+    // Every WebRTC handle below is created, used, and disposed on the main
+    // thread — teardown from the system's own callback thread is posted
+    // here first (see the MediaProjection.Callback in beginCapture) so
+    // dispose ordering never races setup.
+    private var tearingDown = false
+    private var eglBase: EglBase? = null
+    private var factory: PeerConnectionFactory? = null
+    private var screenCapturer: ScreenCapturerAndroid? = null
+    private var surfaceTextureHelper: SurfaceTextureHelper? = null
+    private var videoSource: VideoSource? = null
+    private var videoTrack: VideoTrack? = null
 
     private val _state = MutableStateFlow<CaptureState>(CaptureState.Idle)
     val state: StateFlow<CaptureState> = _state.asStateFlow()
+
+    /**
+     * Non-null exactly while [state] is [CaptureState.Capturing]. Held here
+     * rather than inside the state value because a `VideoTrack` is a native
+     * handle, not a value — putting it in a `data class` would give it an
+     * identity-based `equals` that means nothing.
+     */
+    var screenCapture: ScreenCapture? = null
+        private set
 
     inner class LocalBinder : Binder() {
         fun service(): ScreenShareService = this@ScreenShareService
@@ -70,10 +83,10 @@ class ScreenShareService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // Foreground FIRST, unconditionally, before a single line touches
-        // MediaProjection — see the class doc. If the consent extras below
-        // turn out to be missing or stale, this call has still already
-        // happened, which is the point: the ordering does not get to depend
-        // on the intent being well-formed.
+        // capture — see the class doc. If the consent extras below turn out
+        // missing or stale, this call has still already happened, which is
+        // the point: the ordering does not get to depend on the intent
+        // being well-formed.
         startForegroundWithNotification()
 
         val resultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, RESULT_CANCELED_SENTINEL)
@@ -81,13 +94,10 @@ class ScreenShareService : Service() {
         val data = intent?.parcelableExtraCompat<Intent>(EXTRA_RESULT_DATA)
 
         if (resultCode == RESULT_OK_SENTINEL && data != null) {
-            beginCapture(resultCode, data)
+            beginCapture(data)
         } else {
             // Nothing to do without real consent data — never fabricate a
-            // "capturing" state to match. stopSelf() here still shows a
-            // notification for a frame or two on some OEM skins; that is a
-            // known, accepted cost of the ordering requirement above, not a
-            // bug in this service.
+            // "capturing" state to match.
             _state.value = CaptureState.Stopped(reason = "No capture permission was granted")
             stopSelf()
         }
@@ -96,119 +106,128 @@ class ScreenShareService : Service() {
 
     /** Called from the bound Activity's "Stop Sharing" action, not only by the system. */
     fun stopCapture() {
-        // MediaProjection.stop() invokes the Callback's onStop() below,
-        // which is the single teardown path regardless of who initiated
-        // the stop — this app, the system's kill-switch chip, or the
-        // screen-lock behaviour Android 15 QPR1+ enforces on its own.
-        mediaProjection?.stop()
+        // Routes through the same teardown as a system-initiated stop
+        // (screen lock on Android 15 QPR1+, the kill-switch chip): there is
+        // one path capture ever ends by, regardless of who asked.
+        finishCapture(reason = "Screen sharing stopped")
     }
 
-    private fun beginCapture(resultCode: Int, data: Intent) {
-        val projectionManager =
-            getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-        val projection = projectionManager.getMediaProjection(resultCode, data)
-        if (projection == null) {
-            // Documented as nullable rather than throwing — seen in practice
-            // when the consent token from captureLauncher's result has gone
-            // stale (an OS-killed Activity resumed later, say). No different
-            // in kind from the "consent missing entirely" branch above this
-            // function; same non-crashing answer applies.
-            _state.value = CaptureState.Stopped(reason = "Screen capture could not be started")
-            stopSelf()
-            return
-        }
-        mediaProjection = projection
+    private fun beginCapture(permissionData: Intent) {
+        ensureFactoryInitialized(applicationContext)
 
-        projection.registerCallback(
+        val egl = EglBase.create()
+        eglBase = egl
+
+        val peerConnectionFactory = PeerConnectionFactory.builder()
+            .setVideoEncoderFactory(
+                // Prefer hardware VP8/VP9/H.264 where present, software
+                // otherwise. (enableIntelVp8Encoder, enableH264HighProfile)
+                DefaultVideoEncoderFactory(egl.eglBaseContext, true, true),
+            )
+            .setVideoDecoderFactory(DefaultVideoDecoderFactory(egl.eglBaseContext))
+            .createPeerConnectionFactory()
+        factory = peerConnectionFactory
+
+        val capturer = ScreenCapturerAndroid(
+            permissionData,
             object : MediaProjection.Callback() {
                 override fun onStop() {
-                    // Fires for every stop path (see stopCapture() above),
-                    // so this is the one place capture ever actually ends.
-                    val reason = if (_state.value is CaptureState.Capturing) {
-                        "Screen sharing stopped"
-                    } else {
-                        "Screen sharing was stopped before it started"
+                    // The system ended the projection (screen lock, the
+                    // kill-switch chip) — not this app. This fires on the
+                    // capturer's own handler thread; hop to main so teardown
+                    // runs where setup did.
+                    mainHandler.post {
+                        finishCapture(reason = "The system stopped screen sharing")
                     }
-                    teardownCapture()
-                    _state.value = CaptureState.Stopped(reason = reason)
-                    stopSelf()
                 }
             },
-            null,
         )
+        screenCapturer = capturer
 
-        val thread = HandlerThread("ScreenShareImageReader").apply { start() }
-        handlerThread = thread
+        val helper = SurfaceTextureHelper.create("ScreenCaptureThread", egl.eglBaseContext)
+        surfaceTextureHelper = helper
+
+        // isScreencast = true: turns on the screen-content coding paths
+        // (architecture §9) — text stays sharp under bandwidth pressure
+        // rather than the frame-rate-first behaviour tuned for camera video.
+        val source = peerConnectionFactory.createVideoSource(true)
+        videoSource = source
+        capturer.initialize(helper, applicationContext, source.capturerObserver)
 
         val metrics = resources.displayMetrics
-        val reader = ImageReader.newInstance(
-            metrics.widthPixels,
-            metrics.heightPixels,
-            android.graphics.PixelFormat.RGBA_8888,
-            2,
-        )
-        imageReader = reader
-        reader.setOnImageAvailableListener(
-            { r ->
-                // acquireLatestImage() can legitimately return null if the
-                // reader has nothing new — MediaProjection can call this
-                // listener opportunistically, not on a strict one-image
-                // guarantee. Closed explicitly rather than via Kotlin's
-                // `use {}`: android.media.Image implements only
-                // java.lang.AutoCloseable, not the java.io.Closeable that
-                // extension actually requires.
-                val image = r.acquireLatestImage()
-                if (image != null) {
-                    frameCount.incrementAndGet()
-                    image.close()
-                }
-            },
-            android.os.Handler(thread.looper),
-        )
+        val (width, height) = fitWithin(metrics.widthPixels, metrics.heightPixels, MAX_EDGE_PX)
 
-        virtualDisplay = projection.createVirtualDisplay(
-            "CrossScreenCapture",
-            metrics.widthPixels,
-            metrics.heightPixels,
-            metrics.densityDpi,
-            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-            reader.surface,
-            null,
-            null,
-        )
+        val track = peerConnectionFactory.createVideoTrack(VIDEO_TRACK_ID, source)
+        track.setEnabled(true)
+        videoTrack = track
 
-        _state.value = CaptureState.Capturing(frameCount = 0)
-
-        // Sampled, not emitted per-frame: a busy screen can produce frames
-        // far faster than Compose needs to redraw a counter, and the
-        // ImageReader listener already runs off the main thread.
-        frameSamplerJob = serviceScope.launch {
-            while (true) {
-                delay(500)
-                _state.value = CaptureState.Capturing(frameCount = frameCount.get())
-            }
+        try {
+            capturer.startCapture(width, height, TARGET_FPS)
+        } catch (runtime: RuntimeException) {
+            // getMediaProjection() can still fail here even past the consent
+            // dialog — a token invalidated between grant and use, most
+            // often. Non-crashing answer, same as everywhere else.
+            android.util.Log.w(TAG, "startCapture failed", runtime)
+            finishCapture(reason = "Screen capture could not be started")
+            return
         }
+
+        screenCapture = ScreenCapture(track = track, eglContext = egl.eglBaseContext)
+        _state.value = CaptureState.Capturing(width = width, height = height, fps = TARGET_FPS)
     }
 
-    private fun teardownCapture() {
-        frameSamplerJob?.cancel()
-        frameSamplerJob = null
-        virtualDisplay?.release()
-        virtualDisplay = null
-        imageReader?.close()
-        imageReader = null
-        handlerThread?.quitSafely()
-        handlerThread = null
-        mediaProjection = null
-        frameCount.set(0)
+    /**
+     * The single teardown path — every stop trigger (this app's Stop
+     * Sharing, the system chip, a failed start, onDestroy) routes here.
+     * Re-entrant calls are no-ops: [tearingDown] plus the null-out of each
+     * handle means a second call finds nothing left to do.
+     */
+    private fun finishCapture(reason: String) {
+        if (tearingDown) return
+        tearingDown = true
+
+        val alreadyStopped = _state.value is CaptureState.Stopped
+        val wasCapturing = _state.value is CaptureState.Capturing
+
+        screenCapture = null
+
+        // stopCapture() unregisters our MediaProjection.Callback before
+        // stopping the projection, so this does not re-enter onStop().
+        try {
+            screenCapturer?.stopCapture()
+        } catch (interrupted: InterruptedException) {
+            Thread.currentThread().interrupt()
+            android.util.Log.w(TAG, "interrupted while stopping capture", interrupted)
+        }
+        screenCapturer?.dispose()
+        screenCapturer = null
+
+        videoTrack?.dispose()
+        videoTrack = null
+        videoSource?.dispose()
+        videoSource = null
+        surfaceTextureHelper?.dispose()
+        surfaceTextureHelper = null
+        factory?.dispose()
+        factory = null
+        eglBase?.release()
+        eglBase = null
+
+        // Do not overwrite a more specific Stopped reason a failed start may
+        // already have set; do announce the stop of a live capture.
+        if (wasCapturing || !alreadyStopped) {
+            _state.value = CaptureState.Stopped(reason = reason)
+        }
+        // Left true: this service instance is on its way out via stopSelf().
+        // A later share is a fresh instance with tearingDown = false again.
+        stopSelf()
     }
 
     private fun startForegroundWithNotification() {
         val manager = getSystemService(NotificationManager::class.java)
-        // IMPORTANCE_LOW: visible and non-dismissible (this is the
-        // "you are sharing your screen" abuse-prevention banner architecture
-        // §7 requires — a user must always be able to see it), but silent —
-        // a chime every time this fires would be its own kind of nuisance.
+        // IMPORTANCE_LOW: visible and non-dismissible (the "you are sharing
+        // your screen" banner architecture §7 requires — a user must always
+        // be able to see it), but silent.
         val channel = NotificationChannel(
             CHANNEL_ID,
             "Screen sharing",
@@ -220,8 +239,7 @@ class ScreenShareService : Service() {
             .setContentTitle("CrossScreen")
             .setContentText("You are sharing your screen")
             // No custom icon exists yet — same disposable placeholder the
-            // manifest's own launcher icon uses (sym_def_app_icon), not an
-            // oversight specific to this file.
+            // manifest's launcher icon uses (sym_def_app_icon).
             .setSmallIcon(android.R.drawable.ic_menu_share)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
@@ -235,17 +253,19 @@ class ScreenShareService : Service() {
             )
         } else {
             // Below API 29, startForeground() has no service-type argument
-            // at all — minSdk 26 still needs this branch to compile and run
-            // there, even though MediaProjection's stricter rules are an
-            // API 29+/34+ concern.
+            // at all — minSdk 26 still needs this branch.
             @Suppress("DEPRECATION")
             startForeground(NOTIFICATION_ID, notification)
         }
     }
 
     override fun onDestroy() {
-        teardownCapture()
-        serviceScope.cancel()
+        // Belt and braces: finishCapture() already runs on every stop path,
+        // but a service killed some other way still must not leak native
+        // handles.
+        if (screenCapturer != null || factory != null || eglBase != null) {
+            finishCapture(reason = "Screen sharing stopped")
+        }
         super.onDestroy()
     }
 
@@ -253,28 +273,73 @@ class ScreenShareService : Service() {
         const val EXTRA_RESULT_CODE = "app.crossscreen.android.capture.EXTRA_RESULT_CODE"
         const val EXTRA_RESULT_DATA = "app.crossscreen.android.capture.EXTRA_RESULT_DATA"
 
-        // Mirrors android.app.Activity.RESULT_OK / RESULT_CANCELED (0 / -1)
-        // without an Activity import in a Service file that has no other
-        // reason to depend on one.
+        // Mirrors android.app.Activity.RESULT_OK / RESULT_CANCELED (-1 / 0)
+        // without an Activity import in a Service file with no other reason
+        // to depend on one.
         private const val RESULT_OK_SENTINEL = -1
         private const val RESULT_CANCELED_SENTINEL = 0
 
+        private const val TAG = "ScreenShareService"
         private const val CHANNEL_ID = "screen_share"
         private const val NOTIFICATION_ID = 1
+
+        private const val VIDEO_TRACK_ID = "screen_video"
+        // architecture §9: cap the long edge at 1920, never upscale. A phone
+        // in portrait therefore caps height, not width.
+        private const val MAX_EDGE_PX = 1920
+        private const val TARGET_FPS = 30
+
+        @Volatile
+        private var factoryInitialized = false
+
+        /**
+         * `PeerConnectionFactory.initialize()` is a once-per-process call and
+         * must precede any factory construction. Guarded rather than pushed
+         * into an `Application` subclass so an app launch that never shares a
+         * screen pays none of its cost.
+         */
+        private fun ensureFactoryInitialized(appContext: android.content.Context) {
+            if (factoryInitialized) return
+            synchronized(ScreenShareService::class.java) {
+                if (factoryInitialized) return
+                PeerConnectionFactory.initialize(
+                    PeerConnectionFactory.InitializationOptions
+                        .builder(appContext)
+                        .createInitializationOptions(),
+                )
+                factoryInitialized = true
+            }
+        }
+
+        /** Scales (w, h) down so its longer edge is at most [maxEdge]; never scales up. */
+        private fun fitWithin(w: Int, h: Int, maxEdge: Int): Pair<Int, Int> {
+            val longEdge = maxOf(w, h)
+            if (longEdge <= maxEdge) return w to h
+            val scale = maxEdge.toDouble() / longEdge
+            // Even dimensions — some encoders reject odd width/height.
+            val sw = (w * scale).toInt().let { it - (it % 2) }
+            val sh = (h * scale).toInt().let { it - (it % 2) }
+            return sw to sh
+        }
     }
 }
 
-/** Sealed over Idle -> Capturing -> Stopped; there is no path back to Capturing without a fresh consent grant. */
+/** What the UI needs to render the local capture: the track, and the GL context its frames live in. */
+class ScreenCapture(
+    val track: VideoTrack,
+    val eglContext: EglBase.Context,
+)
+
+/** Sealed over Idle -> Capturing -> Stopped; no path back to Capturing without a fresh consent grant. */
 sealed interface CaptureState {
     data object Idle : CaptureState
-    data class Capturing(val frameCount: Int) : CaptureState
+    data class Capturing(val width: Int, val height: Int, val fps: Int) : CaptureState
     data class Stopped(val reason: String) : CaptureState
 }
 
 /**
- * `Intent.getParcelableExtra(String)` was deprecated in API 33 in favour of
- * the type-checked overload; minSdk 26 still needs the old one on devices
- * below that.
+ * `Intent.getParcelableExtra(String)` was deprecated in API 33 for the
+ * type-checked overload; minSdk 26 still needs the old one below that.
  */
 private inline fun <reified T : Parcelable> Intent.parcelableExtraCompat(key: String): T? =
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {

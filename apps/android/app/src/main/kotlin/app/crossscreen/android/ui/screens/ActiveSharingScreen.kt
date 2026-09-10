@@ -25,10 +25,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
+import app.crossscreen.android.capture.ScreenCapture
 import app.crossscreen.android.protocol.ConnectionState
 import app.crossscreen.android.ui.components.StatusIndicator
+import app.crossscreen.android.ui.components.VideoPreview
 import app.crossscreen.android.ui.theme.CrossScreenTheme
 import app.crossscreen.android.ui.theme.MinTouchTarget
 import app.crossscreen.android.ui.theme.Radius
@@ -37,21 +40,17 @@ import kotlinx.coroutines.delay
 
 /**
  * design/mobile spec §H. `viewerCount` and `connection` are owned by the
- * caller rather than this screen — once `MediaProjection`/`org.webrtc`
- * wiring exists they come from the real session, the same as the web
- * sharer's `SharerSession` events do; nothing here assumes a live capture.
+ * caller rather than this screen — once signaling exists they come from the
+ * real session, the same as the web sharer's `SharerSession` events do.
  *
  * The confirmation on Stop matches the spec's exact copy ("Stop sharing your
  * screen?" / Cancel / Stop Sharing) — a screen being shared with no
  * confirmation before it ends is the wrong direction to be careless in.
  *
- * [framesCaptured] is the one honest signal this screen can show ahead of
- * `org.webrtc`: a real count from `ScreenShareService`'s `ImageReader`, not
- * a guess. Null keeps the preview above working unchanged and lets this
- * screen still render sensibly for the mock-state paths that have not
- * started real capture (there are none left after this slice, but the
- * default costs nothing and avoids forcing every call site to know about
- * capture internals).
+ * [screenCapture] is the real thing when non-null: the local WebRTC
+ * `VideoTrack` from `ScreenShareService`, rendered in place of the §H "live
+ * preview" placeholder. Null falls back to the placeholder box, which is
+ * still what `@Preview` and any not-yet-capturing path get.
  */
 @Composable
 fun ActiveSharingScreen(
@@ -59,7 +58,7 @@ fun ActiveSharingScreen(
     viewerCount: Int,
     connection: ConnectionState,
     onStopSharing: () -> Unit,
-    framesCaptured: Int? = null,
+    screenCapture: ScreenCapture? = null,
 ) {
     var elapsedSeconds by remember { mutableIntStateOf(0) }
     var confirmingStop by remember { mutableStateOf(false) }
@@ -87,23 +86,23 @@ fun ActiveSharingScreen(
             Text(formatDuration(elapsedSeconds), style = MaterialTheme.typography.bodyLarge)
         }
 
-        // A placeholder for the live preview the spec calls for (§H "Live
-        // preview (small)") — real content once capture exists to preview.
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(16f / 9f)
-                .background(
+        // §H "Live preview (small)". Real local capture when there is one,
+        // the placeholder box otherwise (@Preview, or before capture starts).
+        val previewModifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(16f / 9f)
+            .clip(RoundedCornerShape(Radius.md))
+        if (screenCapture != null) {
+            VideoPreview(
+                track = screenCapture.track,
+                eglContext = screenCapture.eglContext,
+                modifier = previewModifier,
+            )
+        } else {
+            Box(
+                modifier = previewModifier.background(
                     color = MaterialTheme.colorScheme.surfaceVariant,
-                    shape = RoundedCornerShape(Radius.md),
                 ),
-        )
-
-        if (framesCaptured != null) {
-            Text(
-                "$framesCaptured frames captured",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
 
