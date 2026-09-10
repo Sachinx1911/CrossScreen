@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import { Layout } from './components/Layout.tsx';
 import { useRoute } from './router.ts';
@@ -19,7 +19,9 @@ export function App() {
   if (route.name === 'join' && joining !== undefined) {
     return (
       <Layout>
-        <Viewer {...joining} />
+        <AppScreen>
+          <Viewer {...joining} />
+        </AppScreen>
       </Layout>
     );
   }
@@ -27,11 +29,29 @@ export function App() {
   return (
     <Layout>
       {route.name === 'home' && <Home />}
-      {route.name === 'share' && <Share />}
-      {route.name === 'join' && (
-        <Join {...(route.token === undefined ? {} : { token: route.token })} onJoin={setJoining} />
+      {route.name === 'share' && (
+        <AppScreen>
+          <Share />
+        </AppScreen>
       )}
-      {route.name === 'settings' && <Settings />}
+      {route.name === 'join' && (
+        <AppScreen>
+          <Join
+            {...(route.token === undefined ? {} : { token: route.token })}
+            onJoin={setJoining}
+          />
+        </AppScreen>
+      )}
+      {route.name === 'settings' && (
+        <AppScreen>
+          <Settings />
+        </AppScreen>
+      )}
     </Layout>
   );
+}
+
+/** The centred column the app screens (Share, Join, Viewer, Settings) sit in. The landing page manages its own full-width sections. */
+function AppScreen({ children }: { children: ReactNode }) {
+  return <div className="mx-auto w-full max-w-2xl px-5 py-12">{children}</div>;
 }
