@@ -3,24 +3,33 @@
 Phase 4's app: a Gradle/Kotlin/Compose project covering the v1 screen list
 from [`docs/ui-scope-mobile.md`](../../docs/ui-scope-mobile.md) §2 — Splash,
 Onboarding (first launch only), a Home / Sessions / Settings bottom nav,
-and the Share Setup → Active Sharing and Join sub-flows over it — with real
-`MediaProjection` capture turned into a WebRTC `VideoTrack`, and no
-`PeerConnection` or signaling yet. Built in that order on purpose, the same
+and the Share Setup → Active Sharing and Join → Viewer sub-flows over it.
+Sharing and joining go end to end now: `MediaProjection` capture → a WebRTC
+`VideoTrack` → a `SharerSession`/`ViewerSession` (`net/`) that create a
+session over the HTTP API, attach over the signaling WebSocket, and
+negotiate a `PeerConnection`. Built in that order on purpose, the same
 order Phase 0.5 held the rest of this project to: prove each layer before
 the next depends on it.
 
-**Status: Home/Share Setup/Active Sharing/Join build and run** (verified
-2026-09-08 on an Android 15 `google_apis` x86_64 emulator). **Splash,
-Onboarding, the Join "Paste" affordance, Sessions, Settings, the bottom
-nav, and the capture → `VideoTrack` slice are written but not yet
-build-verified** — see below for what that needs.
+**Status: the UI builds and runs** (Home/Share/Active/Join verified
+2026-09-08 on an Android 15 `google_apis` x86_64 emulator). **Everything
+since — Splash, Onboarding, Sessions, Settings, the bottom nav, the
+capture → `VideoTrack` slice, and the whole `net/` signaling + WebRTC
+layer — is written but not yet build-verified.** See below for what that
+needs.
+
+The phone needs a CrossScreen server it can reach — there is no public one
+(ADR-0010). Set it in **Settings → Server**: run the dev stack and
+`pnpm tunnel`, paste the `https://…trycloudflare.com` URL. With no server
+set, Share still shows the local preview; only the "someone can watch"
+half needs one.
 
 Kept lightweight on purpose: no navigation library (a `Crossfade` over a
 sealed `Screen`), no database (recent-sessions history is a short JSON
 string in `SharedPreferences` via the `kotlinx.serialization` already here
-for the wire protocol), and no dependency added for any of this slice. The
-one unavoidable weight is the WebRTC native library (~tens of MB) — screen
-sharing has no lighter path.
+for the wire protocol). One dependency added for the whole networking
+layer — OkHttp (WebSocket + HTTP in ~1 MB). The unavoidable weight is the
+WebRTC native library (~tens of MB); screen sharing has no lighter path.
 
 Still out of v1 scope, deliberately (ui-scope-mobile.md M1–M6): accounts
 and Sign In, the Devices screen, the audio and annotation toggles, per-app
@@ -189,12 +198,44 @@ live picture of the emulator's own screen in the preview box → Stop
 Sharing → confirm it returns to Home. Then lock the emulator screen mid-share
 and confirm it returns to Home with "The system stopped screen sharing".
 
+## Signaling + WebRTC: net/
+
+`net/` is the Kotlin counterpart of `packages/webrtc-core/`, cut to the
+happy path:
+
+- **`WebRtcCore`** — one `PeerConnectionFactory` + `EglBase` for the
+  process (WebRTC requires a track and its `PeerConnection` come from the
+  same factory).
+- **`ApiClient`** — `POST /api/v1/sessions`, `GET /api/v1/ice-servers`, over
+  OkHttp; ported from `api-client.ts`.
+- **`SignalingClient`** — an OkHttp WebSocket speaking the `{ v, id, ts,
+  payload }` envelope from `Protocol.kt`, decoded polymorphically on
+  `"type"`. **No auto-reconnect yet** — the TS client's Phase 2 resume
+  handling is a follow-up.
+- **`SharerSession`** — create session → `session.host.attach` → on a
+  pending viewer, show Allow/Decline → on approve, `PeerConnection` +
+  `addTrack` + offer → answer → ICE. One viewer at a time; no stats,
+  tuning, forced relay or ICE-restart recovery yet.
+- **`ViewerSession`** — `session.viewer.request` by code → wait → answer
+  the offer → render the remote track (`ViewerScreen`, screen A13).
+- `IceCandidateQueue`, `RtcHelpers` (coroutine wrappers over the callback
+  SDP API) round it out.
+
+**Nothing here is build-verified.** The `org.webrtc` API surface used
+(`RTCConfiguration`, `createPeerConnection`, `addTrack`, the `SdpObserver`
+/ `PeerConnection.Observer` shapes) was checked against the `m144_release`
+source, and kotlinx.serialization's polymorphic decode of the sealed
+`ClientMessage`/`ServerMessage` is standard — but it has not compiled.
+**To test the full loop:** dev stack + `pnpm tunnel` running, paste the
+URL into Settings → Server on the phone, Share on the phone, open the
+tunnel URL in a desktop browser, Join with the code, Allow on the phone,
+confirm the browser shows the phone's screen. Then the reverse: Share in
+the browser, Join on the phone.
+
 ## Next
 
-Toolchain proven, command-line builds work, protocol types generated and
-tested, `MediaProjection` capture and a WebRTC `VideoTrack` are written
-(pending the build verification above). Next slice of Phase 4 work: a
-Kotlin signaling client over the existing WSS protocol (`Protocol.kt` is
-already generated for it), then a `PeerConnection` that puts this track on
-the wire to a browser viewer — the first time a phone-originated session
-touches the server.
+Once the loop is confirmed: the reconnection + resume half of
+`SignalingClient` (Phase 2's rule that a dropped socket must not cost a
+session its code), stats reporting, and then CI enforcement that
+`Protocol.kt` has not drifted from the schema (exit criterion 6's second
+half).

@@ -7,12 +7,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import app.crossscreen.android.ui.theme.CrossScreenTheme
 import app.crossscreen.android.ui.theme.Spacing
@@ -34,6 +37,8 @@ enum class ThemeMode(val label: String) {
 fun SettingsScreen(
     themeMode: ThemeMode,
     onThemeModeChange: (ThemeMode) -> Unit,
+    serverUrl: String,
+    onServerUrlChange: (String) -> Unit,
     appVersion: String,
 ) {
     Column(
@@ -55,6 +60,25 @@ fun SettingsScreen(
                     )
                 }
             }
+        }
+
+        Section("Server") {
+            Text(
+                "Screen sharing and joining need a CrossScreen server the phone " +
+                    "can reach. There is no public one yet — for a test, run the " +
+                    "dev stack and a tunnel, and paste its https address here.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            OutlinedTextField(
+                value = serverUrl,
+                onValueChange = onServerUrlChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Server address") },
+                placeholder = { Text("https://example.trycloudflare.com") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+            )
         }
 
         Section("Privacy & Security") {
@@ -112,6 +136,12 @@ private fun Section(title: String, content: @Composable () -> Unit) {
 @Composable
 private fun PreviewSettingsScreen() {
     CrossScreenTheme {
-        SettingsScreen(themeMode = ThemeMode.SYSTEM, onThemeModeChange = {}, appVersion = "0.1.0")
+        SettingsScreen(
+            themeMode = ThemeMode.SYSTEM,
+            onThemeModeChange = {},
+            serverUrl = "",
+            onServerUrlChange = {},
+            appVersion = "0.1.0",
+        )
     }
 }

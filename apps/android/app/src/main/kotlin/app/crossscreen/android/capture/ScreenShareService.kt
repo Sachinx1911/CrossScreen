@@ -35,15 +35,12 @@ import org.webrtc.VideoTrack
  * guaranteed to run the two in sequence — and not inline in `MainActivity`
  * where a later refactor could silently reorder it.
  *
- * This slice turns the captured screen into a WebRTC `VideoTrack` and no
- * further: `org.webrtc`'s `ScreenCapturerAndroid` feeds a `VideoSource`
- * created with `isScreencast = true`, and the resulting track is exposed
- * for the UI to render locally (ActiveSharingScreen's live preview). There
- * is no `PeerConnection` yet and no signaling — a phone-originated session
- * does not exist on the server for one to attach to. Proving the
- * capture -> encoder-input -> renderable-track path first, then adding the
- * peer, is the same split the walking skeleton made between "the toolchain
- * builds" and "the app does anything".
+ * This owns only the capture: `org.webrtc`'s `ScreenCapturerAndroid` feeds
+ * a `VideoSource` created with `isScreencast = true` (from the shared
+ * `WebRtcCore` factory), and the resulting `VideoTrack` is exposed via
+ * [screenCapture] for two callers — `ActiveSharingScreen`'s local preview,
+ * and `net/SharerSession`, which adds it to a `PeerConnection` and puts it
+ * on the wire once a viewer is approved.
  */
 class ScreenShareService : Service() {
     private val binder = LocalBinder()

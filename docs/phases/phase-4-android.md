@@ -55,11 +55,14 @@ version-dependent, and unforgiving:
   string, navigation is a `Crossfade`. See
   [`apps/android/README.md`](../../apps/android/README.md).
 - `MediaProjection` capture wired into `org.webrtc`, feeding the same signaling
-  protocol as every other client. **Capture → `VideoTrack` done, 2026-09-10,
-  unverified by build:** consent, the ordering, `ScreenCapturerAndroid` →
-  `VideoSource(isScreencast=true)` → `VideoTrack`, rendered locally. The
-  `PeerConnection` and "feeding the signaling protocol" halves do not exist
-  yet — they need the Kotlin signaling client first.
+  protocol as every other client. **Written end to end, 2026-09-10,
+  unverified by build:** consent + ordering + `ScreenCapturerAndroid` →
+  `VideoSource(isScreencast=true)` → `VideoTrack`, then a `net/SharerSession`
+  and `net/ViewerSession` (ports of `packages/webrtc-core/`) that create a
+  session over the API, attach over the signaling WebSocket, and negotiate a
+  `PeerConnection`. Happy path only — no reconnection/resume, stats, tuning,
+  forced relay, ICE-restart, or multi-viewer yet. Needs a real build + a
+  reachable server (Settings → Server) to confirm.
 - ~~Kotlin protocol types generated from `packages/protocol/schema`, not
   hand-written.~~ **Done, 2026-09-08.** `pnpm --filter @crossscreen/protocol
 generate:kotlin` — see [`apps/android/README.md`](../../apps/android/README.md#protocol-types).

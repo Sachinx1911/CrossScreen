@@ -13,7 +13,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -30,6 +32,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import app.crossscreen.android.capture.ScreenCapture
 import app.crossscreen.android.protocol.ConnectionState
+import app.crossscreen.android.protocol.JoinRequestInfo
 import app.crossscreen.android.ui.components.StatusIndicator
 import app.crossscreen.android.ui.components.VideoPreview
 import app.crossscreen.android.ui.theme.CrossScreenTheme
@@ -51,6 +54,11 @@ import kotlinx.coroutines.delay
  * `VideoTrack` from `ScreenShareService`, rendered in place of the §H "live
  * preview" placeholder. Null falls back to the placeholder box, which is
  * still what `@Preview` and any not-yet-capturing path get.
+ *
+ * [pendingViewers] are people who typed the code and are waiting on a
+ * decision (ADR-0006: nothing is sent to them until [onApprove]). Empty
+ * until a real `SharerSession` is wired; [onApprove]/[onReject] are no-ops
+ * by default so the mock path and `@Preview` still compile.
  */
 @Composable
 fun ActiveSharingScreen(
@@ -59,6 +67,9 @@ fun ActiveSharingScreen(
     connection: ConnectionState,
     onStopSharing: () -> Unit,
     screenCapture: ScreenCapture? = null,
+    pendingViewers: List<JoinRequestInfo> = emptyList(),
+    onApprove: (String) -> Unit = {},
+    onReject: (String) -> Unit = {},
 ) {
     var elapsedSeconds by remember { mutableIntStateOf(0) }
     var confirmingStop by remember { mutableStateOf(false) }
@@ -124,6 +135,24 @@ fun ActiveSharingScreen(
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+
+        pendingViewers.forEach { request ->
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(Spacing.md),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    Text("${request.deviceLabel} wants to join", style = MaterialTheme.typography.bodyLarge)
+                    request.approximateLocation?.let {
+                        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                        Button(onClick = { onApprove(request.participantId) }) { Text("Allow") }
+                        OutlinedButton(onClick = { onReject(request.participantId) }) { Text("Decline") }
+                    }
+                }
+            }
+        }
 
         Button(
             onClick = { confirmingStop = true },

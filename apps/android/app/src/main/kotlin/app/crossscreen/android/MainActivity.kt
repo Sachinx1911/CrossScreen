@@ -33,10 +33,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -46,7 +48,9 @@ import app.crossscreen.android.capture.ScreenCapture
 import app.crossscreen.android.capture.ScreenShareService
 import app.crossscreen.android.data.SessionRecord
 import app.crossscreen.android.data.SessionStore
-import app.crossscreen.android.protocol.ConnectionState
+import app.crossscreen.android.net.SharerSession
+import app.crossscreen.android.net.ViewerSession
+import app.crossscreen.android.net.WebRtcCore
 import app.crossscreen.android.ui.screens.ActiveSharingScreen
 import app.crossscreen.android.ui.screens.HomeScreen
 import app.crossscreen.android.ui.screens.JoinSessionScreen
@@ -56,19 +60,25 @@ import app.crossscreen.android.ui.screens.SettingsScreen
 import app.crossscreen.android.ui.screens.ShareSetupScreen
 import app.crossscreen.android.ui.screens.SplashScreen
 import app.crossscreen.android.ui.screens.ThemeMode
+import app.crossscreen.android.ui.screens.ViewerScreen
 import app.crossscreen.android.ui.theme.CrossScreenTheme
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
+import org.webrtc.VideoTrack
 
 /**
  * Phase 4 against docs/ui-scope-mobile.md's reconciled v1 scope: Splash,
  * Onboarding (first launch), a Home/Sessions/Settings bottom nav, and the
- * Share Setup → Active Sharing and Join sub-flows pushed over it. No
- * accounts, no Devices screen, no iOS — those are M1/M3 in that doc, and
- * ADR-0007 / ADR-0001 behind it.
+ * Share Setup → Active Sharing, Join → Viewer sub-flows pushed over it. No
+ * accounts, no Devices screen, no iOS — M1/M3 in that doc, ADR-0007 /
+ * ADR-0001 behind it.
  *
- * Sharing is real: `MediaProjection` consent, the Android 14+
- * foreground-service ordering, and a WebRTC `VideoTrack` all go through
- * `ScreenShareService`. Still not here: a `PeerConnection` and signaling —
- * Join records a local history row and returns Home, nothing on the wire.
+ * Sharing and joining are real end to end now: `MediaProjection` consent
+ * and the Android 14+ ordering (`ScreenShareService`), then a
+ * `SharerSession` / `ViewerSession` (`net/`) that create a session, attach
+ * over the signaling WebSocket, and negotiate a `PeerConnection`. The
+ * server the phone talks to is set in Settings — there is no production
+ * default yet (ADR-0010).
  *
  * State-based screen switching, not Navigation-Compose — a handful of
  * screens no more earn a navigation library than the web app's hand-written
@@ -85,8 +95,9 @@ private sealed interface Screen {
 
     /** Full-screen sub-flows, no bottom bar. */
     data object ShareSetup : Screen
-    data class ActiveSharing(val joinCodeDisplay: String) : Screen
+    data object ActiveSharing : Screen
     data object Join : Screen
+    data object Viewer : Screen
 }
 
 private fun Screen.isTab(): Boolean =
@@ -95,6 +106,7 @@ private fun Screen.isTab(): Boolean =
 private const val PREFS_NAME = "crossscreen.prefs"
 private const val KEY_ONBOARDING_SEEN = "onboarding_seen"
 private const val KEY_THEME_MODE = "theme_mode"
+private const val KEY_SERVER_URL = "server_url"
 
 // Kept in sync with app/build.gradle.kts defaultConfig.versionName. Cheaper
 // than turning BuildConfig generation on for one string.
@@ -113,14 +125,15 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun CrossScreenApp() {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
     val sessionStore = remember { SessionStore(prefs) }
 
     var screen by remember { mutableStateOf<Screen>(Screen.Splash) }
-    var viewerCount by remember { mutableIntStateOf(0) }
     var homeMessage by remember { mutableStateOf<String?>(null) }
     var stoppedByUser by remember { mutableStateOf(false) }
     var themeMode by remember { mutableStateOf(readThemeMode(prefs)) }
+    var serverUrl by remember { mutableStateOf(prefs.getString(KEY_SERVER_URL, "").orEmpty()) }
 
     var sessionsVersion by remember { mutableIntStateOf(0) }
     val recentSessions = remember(sessionsVersion) { sessionStore.recent() }
@@ -131,12 +144,27 @@ private fun CrossScreenApp() {
 
     var boundService by remember { mutableStateOf<ScreenShareService?>(null) }
     var screenCapture by remember { mutableStateOf<ScreenCapture?>(null) }
+    var sharerSession by remember { mutableStateOf<SharerSession?>(null) }
+    var viewerSession by remember { mutableStateOf<ViewerSession?>(null) }
+    var recordedShareCode by remember { mutableStateOf<String?>(null) }
 
-    // Bound for this Activity's lifetime so the UI can observe capture
-    // state and call stopCapture() directly. The service is also *started*
+    val fallbackSharerUi = remember { MutableStateFlow(SharerSession.Ui()) }
+    val sharerUi by (sharerSession?.ui ?: fallbackSharerUi).collectAsState()
+
+    val fallbackViewerUi = remember { MutableStateFlow(ViewerSession.Ui()) }
+    val viewerUi by (viewerSession?.ui ?: fallbackViewerUi).collectAsState()
+    val fallbackRemoteTrack = remember { MutableStateFlow<VideoTrack?>(null) }
+    val remoteTrack by (viewerSession?.remoteTrack ?: fallbackRemoteTrack).collectAsState()
+    // Valid only after WebRtcCore.ensureInitialized (startJoin calls it); the
+    // runCatching keeps the pre-init read from throwing.
+    val viewerEglContext = remember(viewerSession) {
+        runCatching { WebRtcCore.eglBase.eglBaseContext }.getOrNull()
+    }
+
+    // Bound for this Activity's lifetime so the UI can observe capture state
+    // and call stopCapture() directly. The service is also *started*
     // separately (captureLauncher below) — the standard "started and bound"
-    // split for a foreground service that must keep running even if this
-    // binding drops (an Activity recreation on rotation, for instance).
+    // split for a foreground service that must outlive an Activity recreation.
     DisposableEffect(Unit) {
         val connection = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
@@ -164,10 +192,36 @@ private fun CrossScreenApp() {
                 // one teardown path. stoppedByUser tells the two apart so an
                 // expected stop shows no message about something the user
                 // just did.
+                sharerSession?.stop()
+                sharerSession = null
+                recordedShareCode = null
                 homeMessage = if (stoppedByUser) null else state.reason
                 stoppedByUser = false
                 screen = Screen.Home
             }
+        }
+    }
+
+    // Once the service has a real VideoTrack and a server is configured,
+    // start the SharerSession that creates the session, attaches as host and
+    // negotiates. The local preview works with no server set; only the
+    // "someone can actually watch" half needs one.
+    val onActiveSharing = screen is Screen.ActiveSharing
+    LaunchedEffect(screenCapture, serverUrl, onActiveSharing) {
+        val capture = screenCapture
+        if (onActiveSharing && capture != null && sharerSession == null && serverUrl.isNotBlank()) {
+            val session = SharerSession(scope, serverUrl, capture.track)
+            sharerSession = session
+            session.start()
+        }
+    }
+
+    // Record a history row once the real join code is known.
+    LaunchedEffect(sharerUi.joinCode) {
+        val code = sharerUi.joinCode
+        if (code != null && code != recordedShareCode) {
+            recordedShareCode = code
+            recordSession(SessionRecord(code, SessionRecord.Role.HOST, System.currentTimeMillis(), "Shared"))
         }
     }
 
@@ -188,15 +242,9 @@ private fun CrossScreenApp() {
                 putExtra(ScreenShareService.EXTRA_RESULT_DATA, data)
             }
             ContextCompat.startForegroundService(context, serviceIntent)
-            viewerCount = 0
             homeMessage = null
-            // A fixed mock code until real session creation exists
-            // (services/api's POST /api/v1/sessions, from this client).
-            // Never a real, resolvable code.
-            recordSession(
-                SessionRecord("482719", SessionRecord.Role.HOST, System.currentTimeMillis(), "Shared"),
-            )
-            screen = Screen.ActiveSharing(joinCodeDisplay = "482 719")
+            recordedShareCode = null
+            screen = Screen.ActiveSharing
         } else {
             // The user declined Android's own capture-consent dialog.
             // CAPTURE_PERMISSION_DENIED territory in spirit — stay on Share
@@ -211,6 +259,31 @@ private fun CrossScreenApp() {
         }
         val projectionManager = context.getSystemService(MediaProjectionManager::class.java)
         captureLauncher.launch(projectionManager.createScreenCaptureIntent())
+    }
+
+    fun startJoin(code: String) {
+        if (serverUrl.isBlank()) {
+            homeMessage = "Add a server address in Settings before joining a session."
+            screen = Screen.Home
+            return
+        }
+        WebRtcCore.ensureInitialized(context)
+        val session = ViewerSession(scope, serverUrl, code)
+        viewerSession = session
+        recordSession(SessionRecord(code, SessionRecord.Role.VIEWER, System.currentTimeMillis(), "Joined"))
+        screen = Screen.Viewer
+        scope.launch { session.start() }
+    }
+
+    fun leaveViewer() {
+        viewerSession?.stop()
+        viewerSession = null
+        screen = Screen.Home
+    }
+
+    fun stopSharing() {
+        stoppedByUser = true
+        boundService?.stopCapture()
     }
 
     val darkTheme = when (themeMode) {
@@ -290,6 +363,11 @@ private fun CrossScreenApp() {
                                 themeMode = mode
                                 prefs.edit().putString(KEY_THEME_MODE, mode.name).apply()
                             },
+                            serverUrl = serverUrl,
+                            onServerUrlChange = { url ->
+                                serverUrl = url
+                                prefs.edit().putString(KEY_SERVER_URL, url).apply()
+                            },
                             appVersion = APP_VERSION,
                         )
 
@@ -299,33 +377,28 @@ private fun CrossScreenApp() {
                         )
 
                         is Screen.ActiveSharing -> ActiveSharingScreen(
-                            joinCodeDisplay = current.joinCodeDisplay,
-                            viewerCount = viewerCount,
-                            connection = if (viewerCount > 0) {
-                                ConnectionState.CONNECTED
-                            } else {
-                                ConnectionState.CONNECTING
-                            },
-                            onStopSharing = {
-                                stoppedByUser = true
-                                boundService?.stopCapture()
-                            },
+                            joinCodeDisplay = sharerUi.joinCodeDisplay
+                                ?: (if (serverUrl.isBlank()) "no server set" else "connecting…"),
+                            viewerCount = sharerUi.viewerCount,
+                            connection = sharerUi.connection,
+                            onStopSharing = { stopSharing() },
                             screenCapture = screenCapture,
+                            pendingViewers = sharerUi.pending,
+                            onApprove = { id -> sharerSession?.approve(id) },
+                            onReject = { id -> sharerSession?.reject(id) },
                         )
 
                         is Screen.Join -> JoinSessionScreen(
-                            onJoin = { code ->
-                                recordSession(
-                                    SessionRecord(
-                                        code,
-                                        SessionRecord.Role.VIEWER,
-                                        System.currentTimeMillis(),
-                                        "Joined",
-                                    ),
-                                )
-                                screen = Screen.Home
-                            },
+                            onJoin = { code -> startJoin(code) },
                             onBack = { screen = Screen.Home },
+                        )
+
+                        is Screen.Viewer -> ViewerScreen(
+                            phase = viewerUi.phase,
+                            message = viewerUi.message,
+                            remoteTrack = remoteTrack,
+                            eglContext = viewerEglContext,
+                            onLeave = { leaveViewer() },
                         )
                     }
                 }
