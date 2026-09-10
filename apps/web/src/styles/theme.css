@@ -38,7 +38,17 @@
     sans-serif;
 }
 
+/* `dark:` classes stay in the codebase but never apply — they match only
+   under a `.dark` ancestor, which nothing sets. If a night-mode viewer is
+   scoped later, that subtree opts in by adding the class. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @layer base {
+  /* Light only. The design package ("home page desing/") is light-first, and
+     that is the call for now — an automatic dark swap was making the whole
+     site follow the OS into a theme nobody asked for. If a dark viewer for
+     watching video at night is wanted later, scope it to that screen rather
+     than the whole app. */
   :root {
     --surface-page: #f7f8fa;
     --surface-card: #ffffff;
@@ -48,21 +58,8 @@
     --text-muted: #667085;
   }
 
-  /* Follows the system, with no toggle yet: a preference nobody has expressed
-     is not worth a control. */
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --surface-page: #0b0d10;
-      --surface-card: #14181d;
-      --surface-sunken: #1b2027;
-      --border-subtle: #262c34;
-      --text-strong: #e8eaed;
-      --text-muted: #9aa3ad;
-    }
-  }
-
   html {
-    color-scheme: light dark;
+    color-scheme: light;
   }
 
   body {
