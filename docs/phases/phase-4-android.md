@@ -46,10 +46,13 @@ version-dependent, and unforgiving:
 ## Deliverables
 
 - ~~Kotlin app: Share and Join, following the mobile layouts in the mockup.~~
-  **Done, 2026-09-08; Splash + Onboarding + Join paste added 2026-09-10
-  (unverified by build).** The full v1 screen list from
+  **Done, 2026-09-08; Splash + Onboarding + Join paste + a Home/Sessions/
+  Settings bottom nav + local session history added 2026-09-10 (unverified
+  by build).** The full v1 screen list from
   [`docs/ui-scope-mobile.md`](../ui-scope-mobile.md) §2 except a dedicated
-  Viewer (its own open question) — see
+  Viewer (its own open question), and minus the M1/M3 cuts (accounts,
+  Devices). Kept dependency-free — history is a `SharedPreferences` JSON
+  string, navigation is a `Crossfade`. See
   [`apps/android/README.md`](../../apps/android/README.md).
 - `MediaProjection` capture wired into `org.webrtc`, feeding the same signaling
   protocol as every other client. **Capture → `VideoTrack` done, 2026-09-10,

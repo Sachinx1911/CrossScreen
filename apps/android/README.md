@@ -2,21 +2,30 @@
 
 Phase 4's app: a Gradle/Kotlin/Compose project covering the v1 screen list
 from [`docs/ui-scope-mobile.md`](../../docs/ui-scope-mobile.md) §2 — Splash,
-Onboarding (first launch only), Home, Share Setup, Active Sharing, Join —
-real `MediaProjection` capture turned into a WebRTC `VideoTrack`, and no
+Onboarding (first launch only), a Home / Sessions / Settings bottom nav,
+and the Share Setup → Active Sharing and Join sub-flows over it — with real
+`MediaProjection` capture turned into a WebRTC `VideoTrack`, and no
 `PeerConnection` or signaling yet. Built in that order on purpose, the same
 order Phase 0.5 held the rest of this project to: prove each layer before
 the next depends on it.
 
 **Status: Home/Share Setup/Active Sharing/Join build and run** (verified
 2026-09-08 on an Android 15 `google_apis` x86_64 emulator). **Splash,
-Onboarding, the Join "Paste" affordance, and the capture → `VideoTrack`
-slice are written but not yet build-verified** — see below for what that
-needs.
+Onboarding, the Join "Paste" affordance, Sessions, Settings, the bottom
+nav, and the capture → `VideoTrack` slice are written but not yet
+build-verified** — see below for what that needs.
+
+Kept lightweight on purpose: no navigation library (a `Crossfade` over a
+sealed `Screen`), no database (recent-sessions history is a short JSON
+string in `SharedPreferences` via the `kotlinx.serialization` already here
+for the wire protocol), and no dependency added for any of this slice. The
+one unavoidable weight is the WebRTC native library (~tens of MB) — screen
+sharing has no lighter path.
 
 Still out of v1 scope, deliberately (ui-scope-mobile.md M1–M6): accounts
-and Sign In, the Devices screen, bottom navigation, the audio and
-annotation toggles, per-app capture, and the whole iOS side.
+and Sign In, the Devices screen, the audio and annotation toggles, per-app
+capture, and the whole iOS side. The Settings screen has no account
+section and no Sign Out for the same reason (ADR-0007).
 
 ## What is actually verified
 
