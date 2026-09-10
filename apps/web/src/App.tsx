@@ -19,7 +19,9 @@ export function App() {
   if (route.name === 'join' && joining !== undefined) {
     return (
       <Layout>
-        <AppScreen>
+        {/* Wider than the other screens: watching someone's screen is the
+            one place the content, not the chrome, is the point. */}
+        <AppScreen wide>
           <Viewer {...joining} />
         </AppScreen>
       </Layout>
@@ -52,6 +54,10 @@ export function App() {
 }
 
 /** The centred column the app screens (Share, Join, Viewer, Settings) sit in. The landing page manages its own full-width sections. */
-function AppScreen({ children }: { children: ReactNode }) {
-  return <div className="mx-auto w-full max-w-2xl px-5 py-12">{children}</div>;
+function AppScreen({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
+  return (
+    <div className={`mx-auto w-full px-5 py-12 ${wide ? 'max-w-[1040px]' : 'max-w-2xl'}`}>
+      {children}
+    </div>
+  );
 }

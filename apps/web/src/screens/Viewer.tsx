@@ -132,21 +132,31 @@ export function Viewer({ joinCode, joinToken }: { joinCode?: string; joinToken?:
           </div>
         </div>
 
-        <video
-          ref={video}
-          autoPlay
-          playsInline
-          muted
-          // Double-click is what people try first, and it costs one line.
-          onDoubleClick={fullscreen.toggle}
-          // `contain`, never `cover`: cropping someone's screen would hide the
-          // part they are pointing at.
-          className={
-            fullscreen.isFullscreen
-              ? 'h-full w-full bg-black object-contain'
-              : 'max-h-[75vh] w-full rounded-lg bg-black object-contain'
-          }
-        />
+        {fullscreen.isFullscreen ? (
+          <video
+            ref={video}
+            autoPlay
+            playsInline
+            muted
+            onDoubleClick={fullscreen.toggle}
+            className="h-full w-full bg-black object-contain"
+          />
+        ) : (
+          // A fixed 16:9 stage, never edge-to-edge: the picture sits inside a
+          // bordered box, letterboxed with `object-contain` so nothing is
+          // cropped. Fullscreen (the button, or a double-click) is the way to
+          // fill the display.
+          <div className="aspect-video max-h-[75vh] w-full overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-black">
+            <video
+              ref={video}
+              autoPlay
+              playsInline
+              muted
+              onDoubleClick={fullscreen.toggle}
+              className="h-full w-full object-contain"
+            />
+          </div>
+        )}
 
         {!fullscreen.isFullscreen && (
           <div className="flex items-center justify-between">
