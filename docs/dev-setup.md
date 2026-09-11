@@ -144,6 +144,58 @@ zero CSP violations.
 > `pnpm rebuild electron` is not the fix: it exits silently having done
 > nothing, because pnpm already considers the package built.
 
+## Restarting everything after a reboot
+
+Once the one-time setup below has been done, this is the whole thing needed
+again after a shutdown, sleep, or just closing every terminal — two commands,
+each in its own terminal, left running:
+
+```bash
+pnpm exec turbo run dev --filter=@crossscreen/api --filter=@crossscreen/signaling --filter=@crossscreen/web
+```
+
+```bash
+cloudflared tunnel run crossscreen-local
+```
+
+That is `pnpm dev` scoped to the three services that matter for this — the
+plain `pnpm dev` also starts the desktop Electron app, which is only needed
+when testing the desktop sharer itself. And it's `cloudflared tunnel run`,
+not `pnpm tunnel`: this project has a **named** Cloudflare tunnel
+(`crossscreen-local`) routing a fixed hostname —
+`dev.trailerrordeveloper.online` — to `localhost:5173`, instead of the quick
+tunnel's fresh `*.trycloudflare.com` hostname on every run. The named
+tunnel's config lives at `~/.cloudflared/config.yml` (not in this repo — it
+is machine-specific) and does not need recreating; `tunnel run` just
+reconnects it.
+
+Nothing else needs redoing: TURN credentials are already sitting in
+`services/api/.env.local` (`pnpm turn` copied them there once — see
+[§4 below](#4-prove-the-relay-path-separately)) and survive a reboot with the
+file. Confirm both are actually up before testing anything on a phone:
+
+```bash
+curl http://localhost:5173/
+curl https://dev.trailerrordeveloper.online/api/v1/ice-servers
+```
+
+The second one should list a `turn:` entry, not only `stun:` — if it only
+shows STUN, `services/api/.env.local` lost its TURN key somehow and `pnpm
+turn` needs re-running (§4).
+
+**One-time setup, done once per machine, not needed again:**
+
+- `cloudflared tunnel login` (this machine's Cloudflare authorisation —
+  writes `~/.cloudflared/cert.pem`)
+- `cloudflared tunnel create crossscreen-local` and
+  `cloudflared tunnel route dns --overwrite-dns crossscreen-local dev.trailerrordeveloper.online`
+  (creates the tunnel and points the domain at it)
+- writing `~/.cloudflared/config.yml` with `tunnel:`, `credentials-file:`, and
+  the `ingress:` rule pointing `dev.trailerrordeveloper.online` at
+  `http://localhost:5173`
+- `pnpm turn` (§4) to put the Cloudflare TURN key into
+  `services/api/.env.local`
+
 ## Running the walking skeleton locally
 
 One command starts all three:
