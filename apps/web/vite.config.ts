@@ -13,8 +13,16 @@ export default defineConfig({
     host: true,
 
     // A quick tunnel gets a fresh random hostname every run, and Vite blocks
-    // hosts it does not recognise.
-    allowedHosts: ['.trycloudflare.com', '.ngrok-free.app', 'localhost'],
+    // hosts it does not recognise. trailerrordeveloper.online is the
+    // project's own domain, now on Cloudflare with a named tunnel
+    // (dev.trailerrordeveloper.online) so the dev URL stays fixed instead of
+    // changing on every `pnpm tunnel` run.
+    allowedHosts: [
+      '.trycloudflare.com',
+      '.ngrok-free.app',
+      '.trailerrordeveloper.online',
+      'localhost',
+    ],
 
     /**
      * One tunnel serves everything: the page at `/`, signaling at `/ws`, the
