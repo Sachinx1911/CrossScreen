@@ -132,31 +132,36 @@ export function Viewer({ joinCode, joinToken }: { joinCode?: string; joinToken?:
           </div>
         </div>
 
-        {fullscreen.isFullscreen ? (
+        {/*
+          One `<video>` node, always — its wrapper's className changes with
+          `isFullscreen`, but the element itself never unmounts. It used to
+          be an if/else between two separate <video> elements, which meant
+          entering or leaving fullscreen tore the old one out of the DOM and
+          mounted a fresh one with no `srcObject`: the picture vanished the
+          instant fullscreen was toggled, which is exactly the bug this
+          replaced (most visible on iOS, where `webkitEnterFullscreen()`
+          swaps the video into the OS player out from under a node that was
+          about to be unmounted anyway).
+
+          Not fullscreen: a fixed 16:9 stage, letterboxed with
+          `object-contain` so nothing is cropped, never edge-to-edge.
+        */}
+        <div
+          className={
+            fullscreen.isFullscreen
+              ? 'h-full w-full bg-black'
+              : 'aspect-video max-h-[75vh] w-full overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-black'
+          }
+        >
           <video
             ref={video}
             autoPlay
             playsInline
             muted
             onDoubleClick={fullscreen.toggle}
-            className="h-full w-full bg-black object-contain"
+            className="h-full w-full object-contain"
           />
-        ) : (
-          // A fixed 16:9 stage, never edge-to-edge: the picture sits inside a
-          // bordered box, letterboxed with `object-contain` so nothing is
-          // cropped. Fullscreen (the button, or a double-click) is the way to
-          // fill the display.
-          <div className="aspect-video max-h-[75vh] w-full overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-black">
-            <video
-              ref={video}
-              autoPlay
-              playsInline
-              muted
-              onDoubleClick={fullscreen.toggle}
-              className="h-full w-full object-contain"
-            />
-          </div>
-        )}
+        </div>
 
         {!fullscreen.isFullscreen && (
           <div className="flex items-center justify-between">
